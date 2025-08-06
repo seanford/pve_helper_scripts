@@ -7,7 +7,7 @@ REPO_DIR="/root/pve_helper_scripts"
 REPO_BRANCH="main"
 RESET_SCRIPTS=false
 
-# Check flags
+# Parse flags
 for arg in "$@"; do
     case $arg in
         --reset-scripts) RESET_SCRIPTS=true ;;
@@ -47,6 +47,26 @@ LIVE_ROLLBACK="$REPO_DIR/pve8to9-upgrade/pve8to9-rollback.sh"
 DEF_UPGRADE="$REPO_DIR/pve8to9-upgrade/defaults/pve8to9-upgrade.sh"
 DEF_ROLLBACK="$REPO_DIR/pve8to9-upgrade/defaults/pve8to9-rollback.sh"
 
+# 🔍 Check defaults integrity
+echo "[`date '+%Y-%m-%d %H:%M:%S'`] Checking defaults integrity..."
+DEFAULTS_OK=true
+for file in "$DEF_UPGRADE" "$DEF_ROLLBACK"; do
+    if [ ! -f "$file" ] || [ ! -s "$file" ]; then
+        echo "[`date '+%Y-%m-%d %H:%M:%S'`] Missing or empty default: $(basename "$file")"
+        DEFAULTS_OK=false
+    fi
+done
+
+if ! $DEFAULTS_OK; then
+    echo "[`date '+%Y-%m-%d %H:%M:%S'`] Restoring missing/corrupted default scripts from GitHub..."
+    mkdir -p "$(dirname "$DEF_UPGRADE")"
+    curl -sSL -o "$DEF_UPGRADE" "https://raw.githubusercontent.com/seanford/pve_helper_scripts/main/pve8to9-upgrade/defaults/pve8to9-upgrade.sh"
+    curl -sSL -o "$DEF_ROLLBACK" "https://raw.githubusercontent.com/seanford/pve_helper_scripts/main/pve8to9-upgrade/defaults/pve8to9-rollback.sh"
+    chmod +x "$DEF_UPGRADE" "$DEF_ROLLBACK"
+    echo "[`date '+%Y-%m-%d %H:%M:%S'`] Defaults restored."
+fi
+
+# 🔄 Update live scripts from defaults
 echo "[`date '+%Y-%m-%d %H:%M:%S'`] Ensuring upgrade/rollback scripts are up to date..."
 update_script() {
     local TARGET=$1
