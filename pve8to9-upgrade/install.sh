@@ -70,7 +70,7 @@ log "Beginning install.sh (main branch) with repo: $REPO_URL, dir: $REPO_DIR, br
 # ========================
 log "Checking prerequisites..."
 if ! $DRY_RUN; then
-    apt-get update -y || { log "ERROR: apt-get update failed"; exit 1; }
+    apt-get update || { log "ERROR: apt-get update failed"; exit 1; }
 fi
 for pkg in git curl python3; do
     if ! dpkg -s $pkg &>/dev/null; then
