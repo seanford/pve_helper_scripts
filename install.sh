@@ -7,6 +7,7 @@ REPO_DIR="/root/pve_helper_scripts"
 REPO_BRANCH="main"
 RESET_SCRIPTS=false
 
+# Check flags
 for arg in "$@"; do
     case $arg in
         --reset-scripts) RESET_SCRIPTS=true ;;
@@ -41,36 +42,40 @@ else
     fi
 fi
 
-UPGRADE_SCRIPT="$REPO_DIR/pve8to9-upgrade/pve8to9-upgrade.sh"
-ROLLBACK_SCRIPT="$REPO_DIR/pve8to9-upgrade/pve8to9-rollback.sh"
-DEFAULTS_DIR="$REPO_DIR/pve8to9-upgrade/defaults"
+LIVE_UPGRADE="$REPO_DIR/pve8to9-upgrade/pve8to9-upgrade.sh"
+LIVE_ROLLBACK="$REPO_DIR/pve8to9-upgrade/pve8to9-rollback.sh"
+DEF_UPGRADE="$REPO_DIR/pve8to9-upgrade/defaults/pve8to9-upgrade.sh"
+DEF_ROLLBACK="$REPO_DIR/pve8to9-upgrade/defaults/pve8to9-rollback.sh"
 
 echo "[`date '+%Y-%m-%d %H:%M:%S'`] Ensuring upgrade/rollback scripts are up to date..."
 update_script() {
     local TARGET=$1
-    local SRC="$DEFAULTS_DIR/$(basename $TARGET)"
+    local SOURCE=$2
     local FILE_NAME=$(basename "$TARGET")
     local DEFAULT_SIG="AUTO-CREATED DEFAULT"
 
     if $RESET_SCRIPTS; then
-        echo "[`date '+%Y-%m-%d %H:%M:%S'`] --reset-scripts: Forcing update of $FILE_NAME."
-        cp "$SRC" "$TARGET"
+        echo "[`date '+%Y-%m-%d %H:%M:%S'`] --reset-scripts: Forcing update of $FILE_NAME from defaults."
+        cp "$SOURCE" "$TARGET"
+        chmod +x "$TARGET"
         return
     fi
 
     if [ ! -f "$TARGET" ]; then
         echo "[`date '+%Y-%m-%d %H:%M:%S'`] $FILE_NAME missing — copying from defaults."
-        cp "$SRC" "$TARGET"
+        cp "$SOURCE" "$TARGET"
+        chmod +x "$TARGET"
     elif grep -q "$DEFAULT_SIG" "$TARGET"; then
         echo "[`date '+%Y-%m-%d %H:%M:%S'`] $FILE_NAME is default — updating from defaults."
-        cp "$SRC" "$TARGET"
+        cp "$SOURCE" "$TARGET"
+        chmod +x "$TARGET"
     else
         echo "[`date '+%Y-%m-%d %H:%M:%S'`] $FILE_NAME customized — leaving untouched."
     fi
 }
 
-update_script "$UPGRADE_SCRIPT"
-update_script "$ROLLBACK_SCRIPT"
+update_script "$LIVE_UPGRADE" "$DEF_UPGRADE"
+update_script "$LIVE_ROLLBACK" "$DEF_ROLLBACK"
 
 echo "[`date '+%Y-%m-%d %H:%M:%S'`] Cleaning up dashboard processes..."
 pkill -f pve-upgrade-dashboard.py >/dev/null 2>&1 || true
