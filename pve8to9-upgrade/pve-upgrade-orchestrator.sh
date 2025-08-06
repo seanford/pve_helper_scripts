@@ -15,6 +15,7 @@ FORCE_VENV=false
 SNAPSHOT=false
 NO_DASHBOARD=false
 DASHBOARD_PYTHON="python3"
+VENV_DIR="$SCRIPT_DIR/venv"
 
 # -----------------------
 # Parse Flags
@@ -62,9 +63,16 @@ function install_prereqs {
             apt-get install -y $pkg
         fi
     done
-    if ! python3 -c "import websockets" &>/dev/null; then
-        log "Installing Python websockets via apt..."
-        apt-get install -y python3-websockets
+    if $FORCE_VENV; then
+        if ! dpkg -s python3-venv &>/dev/null; then
+            log "Installing missing package: python3-venv"
+            apt-get install -y python3-venv
+        fi
+    else
+        if ! python3 -c "import websockets" &>/dev/null; then
+            log "Installing Python websockets via apt..."
+            apt-get install -y python3-websockets
+        fi
     fi
 }
 
@@ -153,11 +161,31 @@ function push_upgrade_script {
     ssh "$NODE" "chmod +x $REMOTE_PATH"
 }
 
+function collect_backup {
+    local NODE=$1
+    log "Collecting backup from $NODE..."
+    local REMOTE_BACKUP
+    REMOTE_BACKUP=$(ssh "$NODE" "ls -td /root/pve8to9-backup-* 2>/dev/null | head -1")
+    if [ -z "$REMOTE_BACKUP" ]; then
+        log "No backup directory found on $NODE."
+        return
+    fi
+    local DEST="$BACKUP_BASE/$NODE"
+    mkdir -p "$DEST"
+    if scp -r "$NODE:$REMOTE_BACKUP" "$DEST/"; then
+        log "Backup from $NODE stored at $DEST/$(basename "$REMOTE_BACKUP")"
+    else
+        log "WARNING: Failed to copy backup from $NODE"
+    fi
+}
+
 function upgrade_node {
     local NODE=$1
     log "Upgrading $NODE..."
     echo "STATUS $NODE RUNNING" >> "$LOG_DIR/upgrade.log"
-    if ! ssh "$NODE" "bash $REMOTE_PATH"; then
+    local SNAP_FLAG=""
+    if $SNAPSHOT; then SNAP_FLAG="--snapshot"; fi
+    if ! ssh "$NODE" "bash $REMOTE_PATH $SNAP_FLAG"; then
         echo "STATUS $NODE ERROR" >> "$LOG_DIR/upgrade.log"
         return 1
     fi
@@ -186,6 +214,17 @@ function start_dashboard {
         log "ERROR: Python3 not found — cannot start dashboard."
         log "Continuing without dashboard..."
         return
+    fi
+
+    if $FORCE_VENV; then
+        log "Setting up Python virtual environment for dashboard..."
+        if [ ! -d "$VENV_DIR" ]; then
+            python3 -m venv "$VENV_DIR"
+        fi
+        log "Installing dashboard dependencies..."
+        "$VENV_DIR/bin/pip" install --upgrade pip >/dev/null 2>&1
+        "$VENV_DIR/bin/pip" install websockets >/dev/null 2>&1
+        DASHBOARD_PYTHON="$VENV_DIR/bin/python"
     fi
 
     $DASHBOARD_PYTHON "$DASHBOARD_SCRIPT" "$DASHBOARD_PORT" "$LOG_DIR" &
@@ -217,7 +256,7 @@ function cli_progress {
 # -----------------------
 # Main
 # -----------------------
-mkdir -p "$LOG_DIR"
+mkdir -p "$LOG_DIR" "$BACKUP_BASE"
 > "$LOG_DIR/upgrade.log"
 
 install_prereqs
