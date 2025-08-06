@@ -3,9 +3,6 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-# Prevent unbound variable issues
-: "${running:=false}"
-
 LOGFILE="/var/log/pve8to9-rollback.log"
 exec > >(tee -a "$LOGFILE") 2>&1
 
@@ -16,6 +13,7 @@ echo "================================================================="
 # -----------------------
 # 1. Safety checks
 # -----------------------
+CURRENT_VER=""
 CURRENT_VER=$(pveversion | awk '{print $2}' | cut -d'.' -f1)
 if [[ "$CURRENT_VER" -lt 9 ]]; then
     echo "[INFO] Node is not running Proxmox 9.x. No rollback required."

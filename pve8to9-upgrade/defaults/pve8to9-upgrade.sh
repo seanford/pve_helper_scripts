@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
-# AUTO-CREATED DEFAULT (FULL ROBUST LOGIC)
 set -euo pipefail
 IFS=$'\n\t'
-
-# Prevent unbound variable issues
-: "${running:=false}"
 
 LOGFILE="/var/log/pve8to9-upgrade.log"
 exec > >(tee -a "$LOGFILE") 2>&1
@@ -17,7 +13,9 @@ echo "================================================================="
 # 1. Safety checks
 # -----------------------
 echo "[*] Checking Proxmox version..."
+CURRENT_VER=""
 CURRENT_VER=$(pveversion | awk '{print $2}' | cut -d'.' -f1)
+
 if [[ "$CURRENT_VER" -lt 8 ]]; then
     echo "[ERROR] This node is not running Proxmox 8.x. Aborting."
     exit 1
