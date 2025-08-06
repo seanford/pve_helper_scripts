@@ -73,15 +73,16 @@ function self_update {
         git clone "$REPO_URL" "$REPO_DIR"
     else
         cd "$REPO_DIR"
-        log "Resetting local changes..."
-        git reset --hard HEAD
-        git clean -fd
+        log "Resetting local changes (forced clean)..."
         git fetch --all
-        git pull --rebase
+        git reset --hard origin/main
+        git clean -fdx
+        git pull --force
         cd -
     fi
     chmod +x "$SCRIPT_DIR"/*.sh "$SCRIPT_DIR"/*.py
 }
+
 
 
 # -----------------------
