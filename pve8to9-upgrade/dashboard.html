@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
+<meta charset='UTF-8'>
 <title>PVE 8 → 9 Upgrade Dashboard</title>
 <style>
 body { font-family: sans-serif; background: #111; color: #eee; padding: 20px; margin-bottom: 100px; }
@@ -50,13 +50,13 @@ h1 { color: #0f0; text-shadow: 0 0 10px #0f0; }
 </head>
 <body>
 <h1>PVE 8 → 9 Upgrade Dashboard</h1>
-<div id="grid" class="grid"></div>
-<div id="health" class="health" style="display:none;">
+<div id='grid' class='grid'></div>
+<div id='health' class='health' style='display:none;'>
 <h2>Cluster Health</h2>
-<div id="health-content"></div>
+<div id='health-content'></div>
 </div>
-<div id="summary" style="display:none;">
-<span id="summary-text"></span>
+<div id='summary' style='display:none;'>
+<span id='summary-text'></span>
 </div>
 <script>
 var ws = new WebSocket("ws://" + location.hostname + ":{WS_PORT}");
@@ -69,16 +69,16 @@ ws.onmessage = function(event) {
     let colorClass = node.status;
     let nodeId = "node-" + node.name;
     if (node.status.includes("MISSING-UPGRADE-SCRIPT") || node.status.includes("MISSING-ROLLBACK-SCRIPT")) {
-      html += `<div id="${nodeId}" class="node ${colorClass}">
+      html += `<div id='${nodeId}' class='node ${colorClass}'>
                  <strong>${node.name}</strong><br>
                  🚨 MISSING SCRIPT<br>
                  ${node.status}
                </div>`;
     } else {
-      html += `<div id="${nodeId}" class="node ${colorClass} ${node.online}">
+      html += `<div id='${nodeId}' class='node ${colorClass} ${node.online}'>
                  <strong>${node.name}</strong><br>
                  ${node.status}<br>
-                 <div class="stats">
+                 <div class='stats'>
                    CPU: ${node.cpu}%<br>
                    RAM: ${node.ram}%<br>
                    Uptime: ${node.uptime}
@@ -100,7 +100,7 @@ ws.onmessage = function(event) {
     var healthHtml = "";
     var lastCheck = null;
     data.health_checks.forEach(check => {
-      healthHtml += `<div class="health-item"><strong>${check.timestamp}</strong></div>`;
+      healthHtml += `<div class='health-item'><strong>${check.timestamp}</strong></div>`;
       check.items.forEach(item => {
         let cls = "ok";
         let changeCls = "";
@@ -116,7 +116,7 @@ ws.onmessage = function(event) {
             else changeCls = "warn";
           }
         }
-        healthHtml += `<div class="health-item ${cls} ${changeCls}">- ${item}</div>`;
+        healthHtml += `<div class='health-item ${cls} ${changeCls}'>- ${item}</div>`;
       });
       healthHtml += `<hr>`;
       lastCheck = check;
