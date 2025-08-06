@@ -73,12 +73,16 @@ function self_update {
         git clone "$REPO_URL" "$REPO_DIR"
     else
         cd "$REPO_DIR"
-        git reset --hard
+        log "Resetting local changes..."
+        git reset --hard HEAD
+        git clean -fd
+        git fetch --all
         git pull --rebase
         cd -
     fi
     chmod +x "$SCRIPT_DIR"/*.sh "$SCRIPT_DIR"/*.py
 }
+
 
 # -----------------------
 # Cluster detection
