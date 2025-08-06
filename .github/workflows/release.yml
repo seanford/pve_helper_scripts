@@ -1,6 +1,7 @@
+---
 name: Build and Release PVE Upgrade Scripts
 
-on:
+'on':
   push:
     branches:
       - main
@@ -18,13 +19,15 @@ jobs:
         run: |
           mkdir -p dist
           cp -r pve8to9-upgrade dist/
-          cp install.sh dist/
+          cp pve8to9-upgrade/install.sh dist/
 
       - name: Create Archives
         run: |
           cd dist
-          tar -czvf pve_helper_scripts.tar.gz pve8to9-upgrade install.sh
-          zip -r pve_helper_scripts.zip pve8to9-upgrade install.sh
+          tar -czvf pve_helper_scripts.tar.gz pve8to9-upgrade \
+              pve8to9-upgrade/install.sh
+          zip -r pve_helper_scripts.zip pve8to9-upgrade \
+              pve8to9-upgrade/install.sh
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
