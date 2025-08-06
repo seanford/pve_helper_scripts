@@ -13,37 +13,37 @@ UPGRADE_PATH = "/pve8to9"
 
 clients = set()
 
-HTML_PAGE = f"""<!DOCTYPE html>
+HTML_PAGE = """<!DOCTYPE html>
 <html>
 <head>
 <title>PVE 8 → 9 Upgrade Dashboard</title>
 <style>
-body {{ font-family: sans-serif; background: #111; color: #eee; padding: 20px; margin-bottom: 100px; }}
-h1 {{ color: #0f0; text-shadow: 0 0 10px #0f0; }}
-.grid {{ display: flex; flex-wrap: wrap; gap: 10px; }}
-.node {{ padding: 15px; border-radius: 8px; min-width: 220px; text-align: center; transition: transform 0.3s ease-in-out; }}
-.PENDING {{ background: #444; }}
-.RUNNING {{ background: #225577; animation: pulse 1.5s infinite; }}
-.DONE {{ background: #227722; }}
-.ERROR {{ background: #772222; }}
-.ONLINE {{ border: 2px solid #0f0; }}
-.OFFLINE {{ border: 2px solid #f00; }}
-.stats {{ font-size: 0.9em; margin-top: 8px; color: #ccc; }}
-.health {{ margin-top: 30px; padding: 15px; border-radius: 8px; background: #222; }}
-.health h2 {{ color: #0f0; margin-bottom: 10px; }}
-.health-item {{ margin: 3px 0; }}
-.ok {{ color: #0f0; }}
-.fail {{ color: #f00; }}
-.warn {{ color: #ff0; }}
-.ok.ok {{ background: rgba(0,255,0,0.1); }}
-.fail.fail {{ background: rgba(255,0,0,0.1); }}
-.warn.warn {{ background: rgba(255,255,0,0.1); }}
-#summary {{ position: fixed; bottom: 0; left: 0; right: 0; background: #000; padding: 10px; border-top: 2px solid #0f0; font-weight: bold; }}
-@keyframes pulse {{
-  0% {{ transform: scale(1); }}
-  50% {{ transform: scale(1.03); }}
-  100% {{ transform: scale(1); }}
-}}
+body { font-family: sans-serif; background: #111; color: #eee; padding: 20px; margin-bottom: 100px; }
+h1 { color: #0f0; text-shadow: 0 0 10px #0f0; }
+.grid { display: flex; flex-wrap: wrap; gap: 10px; }
+.node { padding: 15px; border-radius: 8px; min-width: 220px; text-align: center; transition: transform 0.3s ease-in-out; }
+.PENDING { background: #444; }
+.RUNNING { background: #225577; animation: pulse 1.5s infinite; }
+.DONE { background: #227722; }
+.ERROR { background: #772222; }
+.ONLINE { border: 2px solid #0f0; }
+.OFFLINE { border: 2px solid #f00; }
+.stats { font-size: 0.9em; margin-top: 8px; color: #ccc; }
+.health { margin-top: 30px; padding: 15px; border-radius: 8px; background: #222; }
+.health h2 { color: #0f0; margin-bottom: 10px; }
+.health-item { margin: 3px 0; }
+.ok { color: #0f0; }
+.fail { color: #f00; }
+.warn { color: #ff0; }
+.ok.ok { background: rgba(0,255,0,0.1); }
+.fail.fail { background: rgba(255,0,0,0.1); }
+.warn.warn { background: rgba(255,255,0,0.1); }
+#summary { position: fixed; bottom: 0; left: 0; right: 0; background: #000; padding: 10px; border-top: 2px solid #0f0; font-weight: bold; }
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
 </style>
 </head>
 <body>
@@ -58,63 +58,63 @@ h1 {{ color: #0f0; text-shadow: 0 0 10px #0f0; }}
 </div>
 <script>
 var ws = new WebSocket("ws://" + location.hostname + ":{PORT + 1}");
-ws.onmessage = function(event) {{
+ws.onmessage = function(event) {
   var data = JSON.parse(event.data);
 
   // Render Nodes
   var html = "";
-  data.nodes.forEach(node => {{
+  data.nodes.forEach(node => {
     let colorClass = node.status;
-    html += `<div class="node \${colorClass} \${node.online}">
-               <strong>\${node.name}</strong><br>
-               \${node.status}<br>
+    html += `<div class="node ${colorClass} ${node.online}">
+               <strong>${node.name}</strong><br>
+               ${node.status}<br>
                <div class="stats">
-                 CPU: \${node.cpu}%<br>
-                 RAM: \${node.ram}%<br>
-                 Uptime: \${node.uptime}
+                 CPU: ${node.cpu}%<br>
+                 RAM: ${node.ram}%<br>
+                 Uptime: ${node.uptime}
                </div>
              </div>`;
-  }});
+  });
   document.getElementById("grid").innerHTML = html;
 
   // Render Health
-  if (data.health_checks && data.health_checks.length > 0) {{
+  if (data.health_checks && data.health_checks.length > 0) {
     document.getElementById("health").style.display = "block";
     var healthHtml = "";
     var lastCheck = null;
-    data.health_checks.forEach(check => {{
-      healthHtml += `<div class="health-item"><strong>\${check.timestamp}</strong></div>`;
-      check.items.forEach(item => {{
+    data.health_checks.forEach(check => {
+      healthHtml += `<div class="health-item"><strong>${check.timestamp}</strong></div>`;
+      check.items.forEach(item => {
         let cls = "ok";
         let changeCls = "";
 
         if (item.toLowerCase().includes("fail") || item.toLowerCase().includes("offline")) cls = "fail";
         else if (item.toLowerCase().includes("warn")) cls = "warn";
 
-        if (lastCheck) {{
+        if (lastCheck) {
           let prevItem = lastCheck.items.find(i => i.includes(item.split(":")[0]));
-          if (prevItem && prevItem !== item) {{
+          if (prevItem && prevItem !== item) {
             if (prevItem.toLowerCase().includes("fail") && item.toLowerCase().includes("ok")) changeCls = "ok";
             else if (prevItem.toLowerCase().includes("offline") && item.toLowerCase().includes("online")) changeCls = "ok";
             else if (prevItem.toLowerCase().includes("ok") && item.toLowerCase().includes("fail")) changeCls = "fail";
             else if (prevItem.toLowerCase().includes("online") && item.toLowerCase().includes("offline")) changeCls = "fail";
             else changeCls = "warn";
-          }}
-        }}
-        healthHtml += `<div class="health-item \${cls} \${changeCls}">- \${item}</div>`;
-      }});
+          }
+        }
+        healthHtml += `<div class="health-item ${cls} ${changeCls}">- ${item}</div>`;
+      });
       healthHtml += `<hr>`;
       lastCheck = check;
-    }});
+    });
     document.getElementById("health-content").innerHTML = healthHtml;
-  }}
+  }
 
   // Render Summary
-  if (data.summary && data.summary.length > 0) {{
+  if (data.summary && data.summary.length > 0) {
     document.getElementById("summary").style.display = "block";
     document.getElementById("summary-text").innerHTML = data.summary.join(" | ");
-  }}
-}};
+  }
+};
 </script>
 </body>
 </html>
