@@ -36,9 +36,16 @@ get_cluster_nodes() {
     ' "$COROSYNC_CONF"
 }
 
+# Arrays for summary
+declare -A NODE_STATUS
+declare -A NODE_MESSAGES
+
 # Update known_hosts on a single node
 update_known_hosts() {
     local node_name="$1"
+    local node_success=1
+    local node_message=""
+
     echo "=========="
     echo "Updating known_hosts for node: $node_name"
 
@@ -49,6 +56,8 @@ update_known_hosts() {
             echo "Removed old SSH key for $node_name from $KNOWN_HOSTS_SYS."
         else
             echo "Warning: Failed to remove $node_name from $KNOWN_HOSTS_SYS (permission denied or not found)."
+            node_success=0
+            node_message+="Could not remove from $KNOWN_HOSTS_SYS; "
         fi
     else
         info_notice "$KNOWN_HOSTS_SYS does not exist, skipping."
@@ -61,6 +70,8 @@ update_known_hosts() {
             echo "Removed old SSH key for $node_name from $KNOWN_HOSTS_ROOT."
         else
             echo "Warning: Failed to remove $node_name from $KNOWN_HOSTS_ROOT (permission denied or not found)."
+            node_success=0
+            node_message+="Could not remove from $KNOWN_HOSTS_ROOT; "
         fi
     else
         info_notice "$KNOWN_HOSTS_ROOT does not exist, skipping."
@@ -71,17 +82,29 @@ update_known_hosts() {
         echo "Fetched and added new SSH key for $node_name."
     else
         echo "Warning: Unable to fetch SSH key from $node_name. Node may be unreachable or SSH may be misconfigured."
+        node_success=0
+        node_message+="SSH key fetch failed; "
     fi
 
     # Update cluster certificates
     if pvecm updatecerts -F; then
         echo "Cluster certificates updated."
     else
-        error_exit "pvecm updatecerts failed! Check Proxmox cluster status and permissions."
+        echo "Error: pvecm updatecerts failed! Check Proxmox cluster status and permissions."
+        node_success=0
+        node_message+="pvecm updatecerts failed; "
     fi
 
     echo "known_hosts update completed for $node_name"
     echo ""
+
+    if [[ $node_success -eq 1 ]]; then
+        NODE_STATUS["$node_name"]="SUCCESS"
+        NODE_MESSAGES["$node_name"]="All operations completed."
+    else
+        NODE_STATUS["$node_name"]="WARNING"
+        NODE_MESSAGES["$node_name"]="$node_message"
+    fi
 }
 
 # Main logic
@@ -99,3 +122,14 @@ for node in "${NODES[@]}"; do
 done
 
 echo "known_hosts update process completed for all discovered nodes."
+
+# --- Summary Section ---
+echo ""
+echo "========== SUMMARY =========="
+printf "%-20s | %-10s | %s\n" "Node" "Status" "Details"
+printf -- "---------------------+------------+------------------------------------------\n"
+for node in "${NODES[@]}"; do
+    printf "%-20s | %-10s | %s\n" "$node" "${NODE_STATUS[$node]}" "${NODE_MESSAGES[$node]}"
+done
+echo "========================================"
+echo "Summary: All nodes processed. Please review any warnings above."
