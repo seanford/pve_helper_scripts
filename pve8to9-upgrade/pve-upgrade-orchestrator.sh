@@ -16,6 +16,18 @@ SNAPSHOT=false
 DASHBOARD_PYTHON="python3"
 
 # -----------------------
+# Cleanup trap
+# -----------------------
+function cleanup_dashboard {
+    echo "[`date '+%Y-%m-%d %H:%M:%S'`] Cleaning up dashboard processes..."
+    pkill -f pve-upgrade-dashboard.py >/dev/null 2>&1 || true
+    fuser -k ${DASHBOARD_PORT}/tcp >/dev/null 2>&1 || true
+    fuser -k $((DASHBOARD_PORT+1))/tcp >/dev/null 2>&1 || true
+    echo "[`date '+%Y-%m-%d %H:%M:%S'`] Dashboard cleaned up."
+}
+trap cleanup_dashboard EXIT
+
+# -----------------------
 # Logging
 # -----------------------
 function log {
@@ -77,8 +89,7 @@ function self_update {
     else
         cd "$REPO_DIR"
         log "Resetting local changes (forced clean)..."
-        git fetch --all || true
-        if ! git reset --hard origin/main || ! git clean -fdx || ! git pull --force; then
+        if ! git fetch --all || ! git reset --hard origin/main || ! git clean -fdx || ! git pull --force; then
             log "Git update failed — deleting and recloning..."
             cd /root
             rm -rf "$REPO_DIR"
@@ -91,8 +102,6 @@ function self_update {
     fi
     chmod +x "$SCRIPT_DIR"/*.sh "$SCRIPT_DIR"/*.py
 }
-
-
 
 # -----------------------
 # Cluster detection
@@ -163,6 +172,7 @@ function rollback_node {
     local NODE=$1
     log "Rolling back $NODE..."
     echo "STATUS $NODE ROLLBACK" >> "$LOG_DIR/upgrade.log"
+    local START_TS=$(date +%s)
     local LATEST_BACKUP
     LATEST_BACKUP=$(ssh "$NODE" "ls -1td /root/pve8to9-backup-* 2>/dev/null | head -n 1" || echo "")
 
@@ -176,20 +186,23 @@ function rollback_node {
     if [[ "$RB_METHOD" == "1" && $SNAPSHOT == true ]]; then
         log "Rolling back $NODE via snapshot..."
         echo "STATUS $NODE ROLLBACK-SNAPSHOT" >> "$LOG_DIR/upgrade.log"
-        revert_snapshot "$NODE" && echo "STATUS $NODE ROLLBACK-DONE" >> "$LOG_DIR/upgrade.log"
+        revert_snapshot "$NODE"
+        local END_TS=$(date +%s)
+        local DURATION=$((END_TS - START_TS))
+        echo "STATUS $NODE ROLLBACK-DONE (${DURATION}s)" >> "$LOG_DIR/upgrade.log"
     elif [[ "$RB_METHOD" == "2" && -n "$LATEST_BACKUP" ]]; then
         log "Rolling back $NODE via backup restore..."
         echo "STATUS $NODE ROLLBACK-BACKUP" >> "$LOG_DIR/upgrade.log"
         scp "$SCRIPT_DIR/pve8to9-rollback.sh" "$NODE:/root/pve8to9-rollback.sh"
-        ssh "$NODE" "chmod +x /root/pve8to9-rollback.sh && bash /root/pve8to9-rollback.sh" && \
-        echo "STATUS $NODE ROLLBACK-DONE" >> "$LOG_DIR/upgrade.log"
+        ssh "$NODE" "chmod +x /root/pve8to9-rollback.sh && bash /root/pve8to9-rollback.sh"
+        local END_TS=$(date +%s)
+        local DURATION=$((END_TS - START_TS))
+        echo "STATUS $NODE ROLLBACK-DONE (${DURATION}s)" >> "$LOG_DIR/upgrade.log"
     else
         log "Skipping rollback for $NODE."
         echo "STATUS $NODE ROLLBACK-SKIPPED" >> "$LOG_DIR/upgrade.log"
     fi
 }
-
-
 
 # -----------------------
 # Upgrade Node
@@ -208,17 +221,7 @@ function upgrade_node {
     echo "STATUS $NODE RUNNING" >> "$LOG_DIR/upgrade.log"
     if ! ssh "$NODE" "bash $REMOTE_PATH" | tee "$LOG_DIR/${NODE}.log"; then
         echo "STATUS $NODE ERROR" >> "$LOG_DIR/upgrade.log"
-        read -rp "Upgrade failed on $NODE. Rollback? (y/N): " RB
-        if [[ "$RB" =~ ^[Yy]$ ]]; then
-            if $SNAPSHOT; then
-                read -rp "Rollback via snapshot? (y/N): " RBS
-                if [[ "$RBS" =~ ^[Yy]$ ]]; then
-                    revert_snapshot "$NODE"
-                    return
-                fi
-            fi
-            rollback_node "$NODE"
-        fi
+        rollback_node "$NODE"
         return 1
     fi
     echo "STATUS $NODE DONE" >> "$LOG_DIR/upgrade.log"
@@ -275,7 +278,7 @@ function start_dashboard {
     local IP
     IP=$(hostname -I | awk '{print $1}')
     log "Dashboard at: http://$IP:$DASHBOARD_PORT/pve8to9"
-    read -rp "Press Enter after verifying dashboard..."
+    read -rp "Press Enter after verifying dashboard..." < /dev/tty
 }
 
 # -----------------------
@@ -304,13 +307,13 @@ if [ "$MODE" = "single" ]; then
     NODE=$(hostname)
     echo "STATUS $NODE PENDING" >> "$LOG_DIR/upgrade.log"
     start_dashboard
-    read -rp "Upgrade this node? (y/N): " CONFIRM
+    read -rp "Upgrade this node? (y/N): " CONFIRM < /dev/tty
     [[ "$CONFIRM" =~ ^[Yy]$ ]] && upgrade_node "$NODE"
 else
     NODES=($(get_nodes))
     for NODE in "${NODES[@]}"; do echo "STATUS $NODE PENDING" >> "$LOG_DIR/upgrade.log"; done
     echo "Cluster nodes: ${NODES[*]}"
-    read -rp "1) This node only  2) All nodes sequentially: " CHOICE
+    read -rp "1) This node only  2) All nodes sequentially: " CHOICE < /dev/tty
     start_dashboard
     if [ "$CHOICE" = "1" ]; then
         upgrade_node "$(hostname)"
@@ -325,7 +328,6 @@ fi
 log "Upgrade complete. Running health check..."
 health_check
 
-# Periodic health re-check (5 times every 5 minutes)
 for i in {1..5}; do
     log "Running periodic health check $i/5..."
     sleep 300
