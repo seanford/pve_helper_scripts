@@ -59,7 +59,7 @@ echo "================================================================="
 # -----------------------
 echo "[*] Checking Proxmox version..."
 CURRENT_VER=""
-CURRENT_VER=$(pveversion | awk '{print $2}' | cut -d'.' -f1 2>/dev/null || echo "")
+CURRENT_VER=$(pveversion | cut -d'/' -f2 | cut -d'.' -f1 2>/dev/null || echo "")
 if ! [[ "$CURRENT_VER" =~ ^[0-9]+$ ]]; then
     echo "[ERROR] Unable to determine Proxmox major version. Aborting."
     exit 1
@@ -153,7 +153,7 @@ apt-get autoclean -y
 # 7. Final checks
 # -----------------------
 NEW_VER=""
-NEW_VER=$(pveversion | awk '{print $2}' | cut -d'.' -f1 2>/dev/null || echo "")
+NEW_VER=$(pveversion | cut -d'/' -f2 | cut -d'.' -f1 2>/dev/null || echo "")
 if [[ "$NEW_VER" =~ ^9$ ]]; then
     echo "[SUCCESS] Upgrade completed successfully on $(hostname)"
 else
