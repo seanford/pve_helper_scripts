@@ -1,20 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "===> Running Proxmox VE 8 to 9 upgrade on $(hostname)..."
+TS=$(date +%Y%m%d-%H%M%S)
+BACKUP_DIR="/root/pve8to9-backup-$TS"
 
-# Optional pre-check
-if pveversion | grep -q "^pve-manager/9"; then
-  echo "This node is already on PVE 9. Skipping."
-  exit 0
+echo "Backing up configs to $BACKUP_DIR..."
+mkdir -p "$BACKUP_DIR"
+cp -a /etc/apt/sources.list* "$BACKUP_DIR/" || true
+cp -a /etc/apt/sources.list.d "$BACKUP_DIR/" || true
+cp -a /etc/pve "$BACKUP_DIR/etc-pve" || true
+cp -a /etc/network/interfaces "$BACKUP_DIR/" || true
+
+echo "Running PVE 8 → 9 upgrade..."
+if pveversion | grep -q "pve-manager/9"; then
+    echo "Already on PVE 9. Skipping."
+    exit 0
 fi
 
-# Disable enterprise repo
 if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
-  mv /etc/apt/sources.list.d/pve-enterprise.list{,.bak}
+    mv /etc/apt/sources.list.d/pve-enterprise.list{,.bak}
 fi
 
-# Update sources
 cat > /etc/apt/sources.list <<EOF
 deb http://deb.debian.org/debian trixie main contrib non-free non-free-firmware
 deb http://security.debian.org/debian-security trixie-security main contrib non-free non-free-firmware
@@ -25,16 +31,9 @@ cat > /etc/apt/sources.list.d/pve9.list <<EOF
 deb http://download.proxmox.com/debian/pve trixie pve-no-subscription
 EOF
 
-# Import key
 wget -qO - https://enterprise.proxmox.com/debian/proxmox-release-9.x.gpg | gpg --dearmor -o /etc/apt/trusted.gpg.d/proxmox-release-9.gpg
 
-# Optional LVM fix
-/usr/share/pve-manager/migrations/pve-lvm-disable-autoactivation || true
-
-# Upgrade
 apt update
 apt dist-upgrade -y
-
-# Clean up
 apt autoremove --purge -y
-echo "Upgrade complete. Please reboot to finalize."
+echo "Upgrade complete. Please reboot."
