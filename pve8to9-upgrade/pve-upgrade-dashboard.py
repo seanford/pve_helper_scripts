@@ -13,141 +13,12 @@ UPGRADE_PATH = "/pve8to9"
 
 clients = set()
 
-HTML_PAGE = f"""<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>PVE 8 → 9 Upgrade Dashboard</title>
-<style>
-body {{ font-family: sans-serif; background: #111; color: #eee; padding: 20px; margin-bottom: 100px; }}
-h1 {{ color: #0f0; text-shadow: 0 0 10px #0f0; }}
-.grid {{ display: flex; flex-wrap: wrap; gap: 10px; }}
-.node {{ padding: 15px; border-radius: 8px; min-width: 220px; text-align: center; transition: transform 0.3s ease-in-out; }}
-.PENDING {{ background: #444; }}
-.RUNNING {{ background: #225577; animation: pulse 1.5s infinite; }}
-.DONE {{ background: #227722; }}
-.ERROR {{ background: #772222; }}
-.ROLLBACK {{ background: #aa5500; animation: rollbackPulse 1.5s infinite; box-shadow: 0 0 10px rgba(255,165,0,0.8); }}
-.ROLLBACK-SNAPSHOT {{ background: #aa7700; animation: rollbackPulse 1.5s infinite; box-shadow: 0 0 10px rgba(255,165,0,0.8); }}
-.ROLLBACK-BACKUP {{ background: #aa7700; animation: rollbackPulse 1.5s infinite; box-shadow: 0 0 10px rgba(255,165,0,0.8); }}
-.ROLLBACK-DONE {{ background: #227722; }}
-.ROLLBACK-SKIPPED {{ background: #555555; }}
-.MISSING-UPGRADE-SCRIPT, .MISSING-ROLLBACK-SCRIPT {{ background: #ff0000; color: white; animation: blinkMissing 1s infinite; }}
-.ONLINE {{ border: 2px solid #0f0; }}
-.OFFLINE {{ border: 2px solid #f00; }}
-.stats {{ font-size: 0.9em; margin-top: 8px; color: #ccc; }}
-.health {{ margin-top: 30px; padding: 15px; border-radius: 8px; background: #222; }}
-.health h2 {{ color: #0f0; margin-bottom: 10px; }}
-.health-item {{ margin: 3px 0; }}
-.ok {{ color: #0f0; }}
-.fail {{ color: #f00; }}
-.warn {{ color: #ff0; }}
-.ok.ok {{ background: rgba(0,255,0,0.1); }}
-.fail.fail {{ background: rgba(255,0,0,0.1); }}
-.warn.warn {{ background: rgba(255,255,0,0.1); }}
-#summary {{ position: fixed; bottom: 0; left: 0; right: 0; background: #000; padding: 10px; border-top: 2px solid #0f0; font-weight: bold; }}
-@keyframes pulse {{
-  0% {{ transform: scale(1); }}
-  50% {{ transform: scale(1.03); }}
-  100% {{ transform: scale(1); }}
-}}
-@keyframes rollbackPulse {{
-  0% {{ box-shadow: 0 0 10px rgba(255,165,0,0.8); }}
-  50% {{ box-shadow: 0 0 20px rgba(255,165,0,1); }}
-  100% {{ box-shadow: 0 0 10px rgba(255,165,0,0.8); }}
-}}
-@keyframes blinkMissing {{
-  0% {{ background-color: #ff0000; }}
-  50% {{ background-color: #880000; }}
-  100% {{ background-color: #ff0000; }}
-}}
-</style>
-</head>
-<body>
-<h1>PVE 8 → 9 Upgrade Dashboard</h1>
-<div id="grid" class="grid"></div>
-<div id="health" class="health" style="display:none;">
-<h2>Cluster Health</h2>
-<div id="health-content"></div>
-</div>
-<div id="summary" style="display:none;">
-<span id="summary-text"></span>
-</div>
-<script>
-var ws = new WebSocket("ws://" + location.hostname + ":{PORT + 1}");
-ws.onmessage = function(event) {{
-  var data = JSON.parse(event.data);
+TEMPLATE_FILE = os.path.join(os.path.dirname(__file__), "dashboard.html")
 
-  var html = "";
-  var rollbackNodeId = null;
-  data.nodes.forEach(node => {{
-    let colorClass = node.status;
-    let nodeId = "node-" + node.name;
-    if (node.status.includes("MISSING-UPGRADE-SCRIPT") || node.status.includes("MISSING-ROLLBACK-SCRIPT")) {{
-      html += `<div id="${{nodeId}}" class="node ${{colorClass}}">
-                 <strong>${{node.name}}</strong><br>
-                 🚨 MISSING SCRIPT<br>
-                 ${{node.status}}
-               </div>`;
-    }} else {{
-      html += `<div id="${{nodeId}}" class="node ${{colorClass}} ${{node.online}}">
-                 <strong>${{node.name}}</strong><br>
-                 ${{node.status}}<br>
-                 <div class="stats">
-                   CPU: ${{node.cpu}}%<br>
-                   RAM: ${{node.ram}}%<br>
-                   Uptime: ${{node.uptime}}
-                 </div>
-               </div>`;
-    }}
-    if (node.status.includes("ROLLBACK")) rollbackNodeId = nodeId;
-  }});
-  document.getElementById("grid").innerHTML = html;
-
-  if (rollbackNodeId) {{
-    setTimeout(() => {{
-      document.getElementById(rollbackNodeId).scrollIntoView({{ behavior: "smooth", block: "center" }});
-    }}, 300);
-  }}
-
-  if (data.health_checks && data.health_checks.length > 0) {{
-    document.getElementById("health").style.display = "block";
-    var healthHtml = "";
-    var lastCheck = null;
-    data.health_checks.forEach(check => {{
-      healthHtml += `<div class="health-item"><strong>${{check.timestamp}}</strong></div>`;
-      check.items.forEach(item => {{
-        let cls = "ok";
-        let changeCls = "";
-        if (item.toLowerCase().includes("fail") || item.toLowerCase().includes("offline")) cls = "fail";
-        else if (item.toLowerCase().includes("warn")) cls = "warn";
-        if (lastCheck) {{
-          let prevItem = lastCheck.items.find(i => i.includes(item.split(":")[0]));
-          if (prevItem && prevItem !== item) {{
-            if (prevItem.toLowerCase().includes("fail") && item.toLowerCase().includes("ok")) changeCls = "ok";
-            else if (prevItem.toLowerCase().includes("offline") && item.toLowerCase().includes("online")) changeCls = "ok";
-            else if (prevItem.toLowerCase().includes("ok") && item.toLowerCase().includes("fail")) changeCls = "fail";
-            else if (prevItem.toLowerCase().includes("online") && item.toLowerCase().includes("offline")) changeCls = "fail";
-            else changeCls = "warn";
-          }}
-        }}
-        healthHtml += `<div class="health-item ${{cls}} ${{changeCls}}">- ${{item}}</div>`;
-      }});
-      healthHtml += `<hr>`;
-      lastCheck = check;
-    }});
-    document.getElementById("health-content").innerHTML = healthHtml;
-  }}
-
-  if (data.summary && data.summary.length > 0) {{
-    document.getElementById("summary").style.display = "block";
-    document.getElementById("summary-text").innerHTML = data.summary.join(" | ");
-  }}
-}};
-</script>
-</body>
-</html>
-"""
+def load_dashboard_html():
+    with open(TEMPLATE_FILE) as f:
+        template = f.read()
+    return template.replace("{WS_PORT}", str(PORT + 1))
 
 class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
@@ -156,7 +27,8 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-type", "text/html")
             self.end_headers()
-            self.wfile.write(HTML_PAGE.encode())
+            html = load_dashboard_html()
+            self.wfile.write(html.encode())
         else:
             self.send_error(404, "Not found")
 
