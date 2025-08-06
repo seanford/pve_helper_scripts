@@ -13,10 +13,24 @@ DRY_RUN=false
 NO_UPDATE=false
 FORCE_VENV=false
 SNAPSHOT=false
+NO_DASHBOARD=false
 DASHBOARD_PYTHON="python3"
 
 # -----------------------
-# Cleanup dashboard processes
+# Parse Flags
+# -----------------------
+for arg in "$@"; do
+    case $arg in
+        --dry-run) DRY_RUN=true ;;
+        --no-update) NO_UPDATE=true ;;
+        --force-venv) FORCE_VENV=true ;;
+        --snapshot) SNAPSHOT=true ;;
+        --no-dashboard) NO_DASHBOARD=true ;;
+    esac
+done
+
+# -----------------------
+# Cleanup dashboard
 # -----------------------
 function cleanup_dashboard {
     echo "[`date '+%Y-%m-%d %H:%M:%S'`] Cleaning up dashboard processes..."
@@ -34,11 +48,6 @@ function log {
     local MSG="[`date '+%F %T'`] $1"
     echo "$MSG"
     echo "$MSG" >> "$LOG_DIR/upgrade.log"
-}
-
-function usage {
-    echo "Usage: $0 [--dry-run] [--no-update] [--force-venv] [--snapshot]"
-    exit 1
 }
 
 # -----------------------
@@ -69,10 +78,7 @@ function self_update {
     fi
     log "Updating repo..."
     if [ ! -d "$REPO_DIR" ]; then
-        git clone "$REPO_URL" "$REPO_DIR" || {
-            log "ERROR: Failed to clone repo."
-            exit 1
-        }
+        git clone "$REPO_URL" "$REPO_DIR"
     else
         cd "$REPO_DIR"
         log "Resetting local changes..."
@@ -80,10 +86,7 @@ function self_update {
             log "Git update failed — deleting and recloning..."
             cd /root
             rm -rf "$REPO_DIR"
-            git clone "$REPO_URL" "$REPO_DIR" || {
-                log "ERROR: Failed to reclone repo."
-                exit 1
-            }
+            git clone "$REPO_URL" "$REPO_DIR"
         fi
         cd -
     fi
@@ -93,41 +96,6 @@ function self_update {
 # -----------------------
 # Validate scripts
 # -----------------------
-function create_default_scripts {
-    mkdir -p "$SCRIPT_DIR/defaults"
-
-    cat <<'EOF' > "$SCRIPT_DIR/defaults/pve8to9-upgrade.sh"
-#!/usr/bin/env bash
-# AUTO-CREATED DEFAULT
-set -euo pipefail
-LOGFILE="/var/log/pve8to9-upgrade.log"
-exec > >(tee -a "$LOGFILE") 2>&1
-echo "Starting PVE 8 → 9 Upgrade..."
-apt-get update -y
-apt-get dist-upgrade -y
-echo "Upgrade complete."
-EOF
-
-    cat <<'EOF' > "$SCRIPT_DIR/defaults/pve8to9-rollback.sh"
-#!/usr/bin/env bash
-# AUTO-CREATED DEFAULT
-set -euo pipefail
-LOGFILE="/var/log/pve8to9-rollback.log"
-exec > >(tee -a "$LOGFILE") 2>&1
-echo "Starting PVE 8 → 9 Rollback..."
-echo "No rollback steps defined."
-EOF
-
-    cp "$SCRIPT_DIR/defaults/pve8to9-upgrade.sh" "$SCRIPT_DIR/pve8to9-upgrade.sh"
-    cp "$SCRIPT_DIR/defaults/pve8to9-rollback.sh" "$SCRIPT_DIR/pve8to9-rollback.sh"
-    chmod +x "$SCRIPT_DIR"/*.sh
-}
-
-
-
-
-MISSING_SCRIPTS=false
-
 function validate_scripts {
     MISSING_SCRIPTS=false
 
@@ -144,26 +112,22 @@ function validate_scripts {
 
     if $MISSING_SCRIPTS; then
         log "Some required scripts are missing. Auto-creating from defaults..."
-        mkdir -p "$SCRIPT_DIR"
         DEF_DIR="$SCRIPT_DIR/defaults"
-        
+        mkdir -p "$DEF_DIR"
+
         if [ ! -f "$DEF_DIR/pve8to9-upgrade.sh" ] || [ ! -f "$DEF_DIR/pve8to9-rollback.sh" ]; then
             log "Defaults missing — restoring from GitHub..."
-            mkdir -p "$DEF_DIR"
             curl -sSL -o "$DEF_DIR/pve8to9-upgrade.sh" "https://raw.githubusercontent.com/seanford/pve_helper_scripts/main/pve8to9-upgrade/defaults/pve8to9-upgrade.sh"
             curl -sSL -o "$DEF_DIR/pve8to9-rollback.sh" "https://raw.githubusercontent.com/seanford/pve_helper_scripts/main/pve8to9-upgrade/defaults/pve8to9-rollback.sh"
             chmod +x "$DEF_DIR"/*.sh
         fi
-        
+
         cp "$DEF_DIR/pve8to9-upgrade.sh" "$SCRIPT_DIR/pve8to9-upgrade.sh"
         cp "$DEF_DIR/pve8to9-rollback.sh" "$SCRIPT_DIR/pve8to9-rollback.sh"
         chmod +x "$SCRIPT_DIR"/*.sh
         log "Default upgrade/rollback scripts created."
     fi
 }
-
-
-
 
 # -----------------------
 # Detect cluster
@@ -177,11 +141,11 @@ function detect_cluster {
 }
 
 function get_nodes {
-    grep -Po '(?<=name: )\\S+' /etc/pve/corosync.conf 2>/dev/null | sort -u
+    grep -Po '(?<=name: )\S+' /etc/pve/corosync.conf 2>/dev/null | sort -u
 }
 
 # -----------------------
-# Push scripts & upgrade
+# Push & upgrade
 # -----------------------
 function push_upgrade_script {
     local NODE=$1
@@ -204,14 +168,50 @@ function upgrade_node {
 # Dashboard
 # -----------------------
 function start_dashboard {
+    if $NO_DASHBOARD; then
+        log "Skipping dashboard (--no-dashboard specified)"
+        return
+    fi
+
     log "Starting dashboard..."
-    $DASHBOARD_PYTHON "$SCRIPT_DIR/pve-upgrade-dashboard.py" "$DASHBOARD_PORT" "$LOG_DIR" &
+    local DASHBOARD_SCRIPT="$SCRIPT_DIR/pve-upgrade-dashboard.py"
+
+    if [ ! -f "$DASHBOARD_SCRIPT" ]; then
+        log "ERROR: Dashboard script missing at $DASHBOARD_SCRIPT"
+        log "Continuing without dashboard..."
+        return
+    fi
+
+    if ! command -v python3 >/dev/null 2>&1; then
+        log "ERROR: Python3 not found — cannot start dashboard."
+        log "Continuing without dashboard..."
+        return
+    fi
+
+    $DASHBOARD_PYTHON "$DASHBOARD_SCRIPT" "$DASHBOARD_PORT" "$LOG_DIR" &
     DASHBOARD_PID=$!
     sleep 2
-    local IP
-    IP=$(hostname -I | awk '{print $1}')
-    log "Dashboard at: http://$IP:$DASHBOARD_PORT/pve8to9"
-    read -rp "Press Enter after verifying dashboard..." < /dev/tty
+
+    if ! ps -p $DASHBOARD_PID >/dev/null 2>&1; then
+        log "ERROR: Dashboard process failed to start. Continuing without dashboard..."
+        return
+    fi
+
+    local IP=$(hostname -I | awk '{print $1}')
+    log "Dashboard running at: http://$IP:$DASHBOARD_PORT/pve8to9"
+}
+
+# -----------------------
+# CLI Progress (no-dashboard)
+# -----------------------
+function cli_progress {
+    local TOTAL=$1
+    local CURRENT=$2
+    local PERCENT=$(( CURRENT * 100 / TOTAL ))
+    local BAR_LENGTH=30
+    local FILLED=$(( PERCENT * BAR_LENGTH / 100 ))
+    local EMPTY=$(( BAR_LENGTH - FILLED ))
+    printf "\r[%-${BAR_LENGTH}s] %d%% (%d/%d)" "$(printf '#%.0s' $(seq 1 $FILLED))" "$PERCENT" "$CURRENT" "$TOTAL"
 }
 
 # -----------------------
@@ -219,16 +219,6 @@ function start_dashboard {
 # -----------------------
 mkdir -p "$LOG_DIR"
 > "$LOG_DIR/upgrade.log"
-
-for arg in "$@"; do
-    case $arg in
-        --dry-run) DRY_RUN=true ;;
-        --no-update) NO_UPDATE=true ;;
-        --force-venv) FORCE_VENV=true ;;
-        --snapshot) SNAPSHOT=true ;;
-        *) usage ;;
-    esac
-done
 
 install_prereqs
 self_update
@@ -241,21 +231,21 @@ if [ "$MODE" = "single" ]; then
     NODE=$(hostname)
     echo "STATUS $NODE PENDING" >> "$LOG_DIR/upgrade.log"
     start_dashboard
-    read -rp "Upgrade this node? (y/N): " CONFIRM < /dev/tty
-    [[ "$CONFIRM" =~ ^[Yy]$ ]] && push_upgrade_script "$NODE" && upgrade_node "$NODE"
+    log "Starting upgrade for $NODE"
+    push_upgrade_script "$NODE"
+    upgrade_node "$NODE"
 else
     NODES=($(get_nodes))
     for NODE in "${NODES[@]}"; do echo "STATUS $NODE PENDING" >> "$LOG_DIR/upgrade.log"; done
-    echo "Cluster nodes: ${NODES[*]}"
-    read -rp "1) This node only  2) All nodes sequentially: " CHOICE < /dev/tty
+    log "Cluster nodes: ${NODES[*]}"
     start_dashboard
-    if [ "$CHOICE" = "1" ]; then
-        push_upgrade_script "$(hostname)"
-        upgrade_node "$(hostname)"
-    else
-        for NODE in "${NODES[@]}"; do
-            push_upgrade_script "$NODE"
-            upgrade_node "$NODE"
-        done
-    fi
+    COUNT=0
+    TOTAL=${#NODES[@]}
+    for NODE in "${NODES[@]}"; do
+        COUNT=$((COUNT+1))
+        if $NO_DASHBOARD; then cli_progress $TOTAL $COUNT; fi
+        push_upgrade_script "$NODE"
+        upgrade_node "$NODE"
+    done
+    if $NO_DASHBOARD; then echo; fi
 fi
