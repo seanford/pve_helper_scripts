@@ -94,38 +94,35 @@ function self_update {
 # Validate scripts
 # -----------------------
 function create_default_scripts {
-    mkdir -p "$SCRIPT_DIR"
-    
-    # Upgrade script
-    cat <<'EOF' > "$SCRIPT_DIR/pve8to9-upgrade.sh"
+    mkdir -p "$SCRIPT_DIR/defaults"
+
+    cat <<'EOF' > "$SCRIPT_DIR/defaults/pve8to9-upgrade.sh"
 #!/usr/bin/env bash
 # AUTO-CREATED DEFAULT
 set -euo pipefail
 LOGFILE="/var/log/pve8to9-upgrade.log"
 exec > >(tee -a "$LOGFILE") 2>&1
-echo "================================================================="
-echo " Starting PVE 8 → 9 Upgrade on $(hostname)"
-echo "================================================================="
+echo "Starting PVE 8 → 9 Upgrade..."
 apt-get update -y
 apt-get dist-upgrade -y
-echo "Upgrade complete on $(hostname)."
+echo "Upgrade complete."
 EOF
-    chmod +x "$SCRIPT_DIR/pve8to9-upgrade.sh"
 
-    # Rollback script
-    cat <<'EOF' > "$SCRIPT_DIR/pve8to9-rollback.sh"
+    cat <<'EOF' > "$SCRIPT_DIR/defaults/pve8to9-rollback.sh"
 #!/usr/bin/env bash
 # AUTO-CREATED DEFAULT
 set -euo pipefail
 LOGFILE="/var/log/pve8to9-rollback.log"
 exec > >(tee -a "$LOGFILE") 2>&1
-echo "================================================================="
-echo " Rolling back PVE upgrade on $(hostname)"
-echo "================================================================="
-echo "No rollback steps defined in default script."
+echo "Starting PVE 8 → 9 Rollback..."
+echo "No rollback steps defined."
 EOF
-    chmod +x "$SCRIPT_DIR/pve8to9-rollback.sh"
+
+    cp "$SCRIPT_DIR/defaults/pve8to9-upgrade.sh" "$SCRIPT_DIR/pve8to9-upgrade.sh"
+    cp "$SCRIPT_DIR/defaults/pve8to9-rollback.sh" "$SCRIPT_DIR/pve8to9-rollback.sh"
+    chmod +x "$SCRIPT_DIR"/*.sh
 }
+
 
 
 

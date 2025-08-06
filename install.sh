@@ -7,7 +7,6 @@ REPO_DIR="/root/pve_helper_scripts"
 REPO_BRANCH="main"
 RESET_SCRIPTS=false
 
-# Parse flags early so we capture --reset-scripts
 for arg in "$@"; do
     case $arg in
         --reset-scripts) RESET_SCRIPTS=true ;;
@@ -44,25 +43,27 @@ fi
 
 UPGRADE_SCRIPT="$REPO_DIR/pve8to9-upgrade/pve8to9-upgrade.sh"
 ROLLBACK_SCRIPT="$REPO_DIR/pve8to9-upgrade/pve8to9-rollback.sh"
+DEFAULTS_DIR="$REPO_DIR/pve8to9-upgrade/defaults"
 
 echo "[`date '+%Y-%m-%d %H:%M:%S'`] Ensuring upgrade/rollback scripts are up to date..."
 update_script() {
-    local FILE=$1
-    local FILE_NAME=$(basename "$FILE")
+    local TARGET=$1
+    local SRC="$DEFAULTS_DIR/$(basename $TARGET)"
+    local FILE_NAME=$(basename "$TARGET")
     local DEFAULT_SIG="AUTO-CREATED DEFAULT"
 
     if $RESET_SCRIPTS; then
         echo "[`date '+%Y-%m-%d %H:%M:%S'`] --reset-scripts: Forcing update of $FILE_NAME."
-        cp "$REPO_DIR/pve8to9-upgrade/$FILE_NAME" "$FILE"
+        cp "$SRC" "$TARGET"
         return
     fi
 
-    if [ ! -f "$FILE" ]; then
-        echo "[`date '+%Y-%m-%d %H:%M:%S'`] $FILE_NAME missing — copying from repo."
-        cp "$REPO_DIR/pve8to9-upgrade/$FILE_NAME" "$FILE"
-    elif grep -q "$DEFAULT_SIG" "$FILE"; then
-        echo "[`date '+%Y-%m-%d %H:%M:%S'`] $FILE_NAME is default — updating from repo."
-        cp "$REPO_DIR/pve8to9-upgrade/$FILE_NAME" "$FILE"
+    if [ ! -f "$TARGET" ]; then
+        echo "[`date '+%Y-%m-%d %H:%M:%S'`] $FILE_NAME missing — copying from defaults."
+        cp "$SRC" "$TARGET"
+    elif grep -q "$DEFAULT_SIG" "$TARGET"; then
+        echo "[`date '+%Y-%m-%d %H:%M:%S'`] $FILE_NAME is default — updating from defaults."
+        cp "$SRC" "$TARGET"
     else
         echo "[`date '+%Y-%m-%d %H:%M:%S'`] $FILE_NAME customized — leaving untouched."
     fi
