@@ -3,6 +3,9 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+# Prevent unbound variable errors
+running="${running:-false}"
+
 LOGFILE="/var/log/pve8to9-upgrade.log"
 exec > >(tee -a "$LOGFILE") 2>&1
 
