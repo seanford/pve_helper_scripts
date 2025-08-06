@@ -130,6 +130,7 @@ MISSING_SCRIPTS=false
 
 function validate_scripts {
     MISSING_SCRIPTS=false
+
     if [ ! -f "$SCRIPT_DIR/pve8to9-upgrade.sh" ]; then
         log "ERROR: pve8to9-upgrade.sh missing."
         echo "STATUS ALL_NODES MISSING-UPGRADE-SCRIPT" >> "$LOG_DIR/upgrade.log"
@@ -140,25 +141,27 @@ function validate_scripts {
         echo "STATUS ALL_NODES MISSING-ROLLBACK-SCRIPT" >> "$LOG_DIR/upgrade.log"
         MISSING_SCRIPTS=true
     fi
-    if $MISSING_SCRIPTS; then
-        log "Some required scripts are missing."
 
-        # If interactive terminal exists
-        if [ -t 0 ]; then
-            read -rp "Auto-create default scripts now? (y/N): " CREATE < /dev/tty || CREATE="n"
-            if [[ "$CREATE" =~ ^[Yy]$ ]]; then
-                create_default_scripts
-            else
-                log "Aborting due to missing scripts."
-                exit 1
-            fi
-        else
-            # No TTY → Auto-create
-            log "No interactive TTY detected — auto-creating default scripts."
-            create_default_scripts
+    if $MISSING_SCRIPTS; then
+        log "Some required scripts are missing. Auto-creating from defaults..."
+        mkdir -p "$SCRIPT_DIR"
+        DEF_DIR="$SCRIPT_DIR/defaults"
+        
+        if [ ! -f "$DEF_DIR/pve8to9-upgrade.sh" ] || [ ! -f "$DEF_DIR/pve8to9-rollback.sh" ]; then
+            log "Defaults missing — restoring from GitHub..."
+            mkdir -p "$DEF_DIR"
+            curl -sSL -o "$DEF_DIR/pve8to9-upgrade.sh" "https://raw.githubusercontent.com/seanford/pve_helper_scripts/main/pve8to9-upgrade/defaults/pve8to9-upgrade.sh"
+            curl -sSL -o "$DEF_DIR/pve8to9-rollback.sh" "https://raw.githubusercontent.com/seanford/pve_helper_scripts/main/pve8to9-upgrade/defaults/pve8to9-rollback.sh"
+            chmod +x "$DEF_DIR"/*.sh
         fi
+        
+        cp "$DEF_DIR/pve8to9-upgrade.sh" "$SCRIPT_DIR/pve8to9-upgrade.sh"
+        cp "$DEF_DIR/pve8to9-rollback.sh" "$SCRIPT_DIR/pve8to9-rollback.sh"
+        chmod +x "$SCRIPT_DIR"/*.sh
+        log "Default upgrade/rollback scripts created."
     fi
 }
+
 
 
 
