@@ -16,6 +16,7 @@ clients = set()
 HTML_PAGE = """<!DOCTYPE html>
 <html>
 <head>
+<meta charset="UTF-8">
 <title>PVE 8 → 9 Upgrade Dashboard</title>
 <style>
 body { font-family: sans-serif; background: #111; color: #eee; padding: 20px; margin-bottom: 100px; }
@@ -26,6 +27,11 @@ h1 { color: #0f0; text-shadow: 0 0 10px #0f0; }
 .RUNNING { background: #225577; animation: pulse 1.5s infinite; }
 .DONE { background: #227722; }
 .ERROR { background: #772222; }
+.ROLLBACK { background: #aa5500; animation: rollbackPulse 1.5s infinite; box-shadow: 0 0 10px rgba(255,165,0,0.8); }
+.ROLLBACK-SNAPSHOT { background: #aa7700; animation: rollbackPulse 1.5s infinite; box-shadow: 0 0 10px rgba(255,165,0,0.8); }
+.ROLLBACK-BACKUP { background: #aa7700; animation: rollbackPulse 1.5s infinite; box-shadow: 0 0 10px rgba(255,165,0,0.8); }
+.ROLLBACK-DONE { background: #227722; }
+.ROLLBACK-SKIPPED { background: #555555; }
 .ONLINE { border: 2px solid #0f0; }
 .OFFLINE { border: 2px solid #f00; }
 .stats { font-size: 0.9em; margin-top: 8px; color: #ccc; }
@@ -44,6 +50,11 @@ h1 { color: #0f0; text-shadow: 0 0 10px #0f0; }
   50% { transform: scale(1.03); }
   100% { transform: scale(1); }
 }
+@keyframes rollbackPulse {
+  0% { box-shadow: 0 0 10px rgba(255,165,0,0.8); }
+  50% { box-shadow: 0 0 20px rgba(255,165,0,1); }
+  100% { box-shadow: 0 0 10px rgba(255,165,0,0.8); }
+}
 </style>
 </head>
 <body>
@@ -61,11 +72,12 @@ var ws = new WebSocket("ws://" + location.hostname + ":{PORT + 1}");
 ws.onmessage = function(event) {
   var data = JSON.parse(event.data);
 
-  // Render Nodes
   var html = "";
+  var rollbackNodeId = null;
   data.nodes.forEach(node => {
     let colorClass = node.status;
-    html += `<div class="node ${colorClass} ${node.online}">
+    let nodeId = "node-" + node.name;
+    html += `<div id="${nodeId}" class="node ${colorClass} ${node.online}">
                <strong>${node.name}</strong><br>
                ${node.status}<br>
                <div class="stats">
@@ -74,8 +86,20 @@ ws.onmessage = function(event) {
                  Uptime: ${node.uptime}
                </div>
              </div>`;
+
+    // Detect rollback for auto-scroll
+    if (node.status.includes("ROLLBACK")) {
+      rollbackNodeId = nodeId;
+    }
   });
   document.getElementById("grid").innerHTML = html;
+
+  // Auto-scroll to rollback node
+  if (rollbackNodeId) {
+    setTimeout(() => {
+      document.getElementById(rollbackNodeId).scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 300);
+  }
 
   // Render Health
   if (data.health_checks && data.health_checks.length > 0) {
@@ -158,7 +182,7 @@ def parse_log(content):
     for line in lines:
         parts = line.strip().split(" ")
         if len(parts) >= 3 and parts[0] == "STATUS":
-            node, status = parts[1], parts[2]
+            node, status = parts[1], " ".join(parts[2:])
             status_dict[node] = {"status": status}
         elif "HEALTHCHECK BEGIN" in line:
             in_health = True

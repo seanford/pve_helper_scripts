@@ -162,21 +162,34 @@ function backup_node_configs {
 function rollback_node {
     local NODE=$1
     log "Rolling back $NODE..."
+    echo "STATUS $NODE ROLLBACK" >> "$LOG_DIR/upgrade.log"
     local LATEST_BACKUP
-    LATEST_BACKUP=$(ssh "$NODE" "ls -1t $BACKUP_BASE/$NODE | head -n1" 2>/dev/null || echo "")
-    if [ -z "$LATEST_BACKUP" ]; then log "No backup found."; return 1; fi
-    local BACKUP_DIR="$BACKUP_BASE/$NODE/$LATEST_BACKUP"
-    ssh "$NODE" "cp -a $BACKUP_DIR/sources.list* /etc/apt/ 2>/dev/null || true"
-    ssh "$NODE" "cp -a $BACKUP_DIR/etc-pve /etc/pve 2>/dev/null || true"
-    ssh "$NODE" "cp -a $BACKUP_DIR/interfaces /etc/network/interfaces 2>/dev/null || true"
-    ssh "$NODE" "apt-get update"
-    ssh "$NODE" "dpkg --set-selections < $BACKUP_DIR/pkg-selections.txt"
-    ssh "$NODE" "apt-mark manual \$(cat $BACKUP_DIR/pkg-manual.txt)"
-    ssh "$NODE" "apt-get dselect-upgrade -y"
-    while IFS=" " read -r pkg ver; do
-        ssh "$NODE" "apt-get install -y $pkg=$ver || true"
-    done < <(ssh "$NODE" "cat $BACKUP_DIR/pkg-versions.txt")
+    LATEST_BACKUP=$(ssh "$NODE" "ls -1td /root/pve8to9-backup-* 2>/dev/null | head -n 1" || echo "")
+
+    echo ""
+    echo "Rollback options for $NODE:"
+    echo "  1) Snapshot rollback"
+    echo "  2) Backup rollback"
+    echo "  3) Skip rollback"
+    read -rp "Choose rollback method: " RB_METHOD < /dev/tty
+
+    if [[ "$RB_METHOD" == "1" && $SNAPSHOT == true ]]; then
+        log "Rolling back $NODE via snapshot..."
+        echo "STATUS $NODE ROLLBACK-SNAPSHOT" >> "$LOG_DIR/upgrade.log"
+        revert_snapshot "$NODE" && echo "STATUS $NODE ROLLBACK-DONE" >> "$LOG_DIR/upgrade.log"
+    elif [[ "$RB_METHOD" == "2" && -n "$LATEST_BACKUP" ]]; then
+        log "Rolling back $NODE via backup restore..."
+        echo "STATUS $NODE ROLLBACK-BACKUP" >> "$LOG_DIR/upgrade.log"
+        scp "$SCRIPT_DIR/pve8to9-rollback.sh" "$NODE:/root/pve8to9-rollback.sh"
+        ssh "$NODE" "chmod +x /root/pve8to9-rollback.sh && bash /root/pve8to9-rollback.sh" && \
+        echo "STATUS $NODE ROLLBACK-DONE" >> "$LOG_DIR/upgrade.log"
+    else
+        log "Skipping rollback for $NODE."
+        echo "STATUS $NODE ROLLBACK-SKIPPED" >> "$LOG_DIR/upgrade.log"
+    fi
 }
+
+
 
 # -----------------------
 # Upgrade Node
