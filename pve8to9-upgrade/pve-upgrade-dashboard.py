@@ -65,13 +65,13 @@ ws.onmessage = function(event) {{
   var html = "";
   data.nodes.forEach(node => {{
     let colorClass = node.status;
-    html += `<div class="node ${colorClass} ${node.online}">
-               <strong>${node.name}</strong><br>
-               ${node.status}<br>
+    html += `<div class="node \${colorClass} \${node.online}">
+               <strong>\${node.name}</strong><br>
+               \${node.status}<br>
                <div class="stats">
-                 CPU: ${node.cpu}%<br>
-                 RAM: ${node.ram}%<br>
-                 Uptime: ${node.uptime}
+                 CPU: \${node.cpu}%<br>
+                 RAM: \${node.ram}%<br>
+                 Uptime: \${node.uptime}
                </div>
              </div>`;
   }});
@@ -83,7 +83,7 @@ ws.onmessage = function(event) {{
     var healthHtml = "";
     var lastCheck = null;
     data.health_checks.forEach(check => {{
-      healthHtml += `<div class="health-item"><strong>${check.timestamp}</strong></div>`;
+      healthHtml += `<div class="health-item"><strong>\${check.timestamp}</strong></div>`;
       check.items.forEach(item => {{
         let cls = "ok";
         let changeCls = "";
@@ -101,7 +101,7 @@ ws.onmessage = function(event) {{
             else changeCls = "warn";
           }}
         }}
-        healthHtml += `<div class="health-item ${cls} ${changeCls}">- ${item}</div>`;
+        healthHtml += `<div class="health-item \${cls} \${changeCls}">- \${item}</div>`;
       }});
       healthHtml += `<hr>`;
       lastCheck = check;
