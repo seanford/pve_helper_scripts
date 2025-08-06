@@ -39,13 +39,16 @@ get_cluster_nodes() {
 # Update known_hosts on a single node
 update_known_hosts() {
     local node_name="$1"
-    echo "Updating known_hosts on node: $node_name"
+    echo "=========="
+    echo "Updating known_hosts for node: $node_name"
 
     # System-wide known_hosts
     KNOWN_HOSTS_SYS="/etc/ssh/ssh_known_hosts"
     if [[ -e "$KNOWN_HOSTS_SYS" ]]; then
-        if ! ssh-keygen -f "$KNOWN_HOSTS_SYS" -R "$node_name" 2>/dev/null; then
-            echo "Warning: Failed to remove $node_name from $KNOWN_HOSTS_SYS (permission denied?)."
+        if ssh-keygen -f "$KNOWN_HOSTS_SYS" -R "$node_name" >/dev/null 2>&1; then
+            echo "Removed old SSH key for $node_name from $KNOWN_HOSTS_SYS."
+        else
+            echo "Warning: Failed to remove $node_name from $KNOWN_HOSTS_SYS (permission denied or not found)."
         fi
     else
         info_notice "$KNOWN_HOSTS_SYS does not exist, skipping."
@@ -54,24 +57,31 @@ update_known_hosts() {
     # Root user's known_hosts
     KNOWN_HOSTS_ROOT="/root/.ssh/known_hosts"
     if [[ -e "$KNOWN_HOSTS_ROOT" ]]; then
-        if ! ssh-keygen -f "$KNOWN_HOSTS_ROOT" -R "$node_name" 2>/dev/null; then
-            echo "Warning: Failed to remove $node_name from $KNOWN_HOSTS_ROOT (permission denied?)."
+        if ssh-keygen -f "$KNOWN_HOSTS_ROOT" -R "$node_name" >/dev/null 2>&1; then
+            echo "Removed old SSH key for $node_name from $KNOWN_HOSTS_ROOT."
+        else
+            echo "Warning: Failed to remove $node_name from $KNOWN_HOSTS_ROOT (permission denied or not found)."
         fi
     else
         info_notice "$KNOWN_HOSTS_ROOT does not exist, skipping."
     fi
 
     # Add the new key for the node
-    if ! /usr/bin/ssh -e none -o HostKeyAlias="$node_name" -o StrictHostKeyChecking=accept-new root@"$node_name" /bin/true 2>/dev/null; then
+    if /usr/bin/ssh -e none -o HostKeyAlias="$node_name" -o StrictHostKeyChecking=accept-new root@"$node_name" /bin/true 2>/dev/null; then
+        echo "Fetched and added new SSH key for $node_name."
+    else
         echo "Warning: Unable to fetch SSH key from $node_name. Node may be unreachable or SSH may be misconfigured."
     fi
 
     # Update cluster certificates
-    if ! pvecm updatecerts -F; then
+    if pvecm updatecerts -F; then
+        echo "Cluster certificates updated."
+    else
         error_exit "pvecm updatecerts failed! Check Proxmox cluster status and permissions."
     fi
 
     echo "known_hosts update completed for $node_name"
+    echo ""
 }
 
 # Main logic
