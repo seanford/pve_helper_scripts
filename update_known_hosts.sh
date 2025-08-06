@@ -3,13 +3,17 @@
 # This script updates SSH known_hosts entries for all Proxmox cluster nodes.
 # It must be run as root on a node that has /etc/pve/corosync.conf.
 
-# Exit on any error
 set -e
 
-# Function to print errors
+# Print an error and exit
 error_exit() {
     echo "ERROR: $1" >&2
     exit 1
+}
+
+# Print a notice (not an error)
+info_notice() {
+    echo "NOTICE: $1"
 }
 
 # Check for root privileges
@@ -23,24 +27,34 @@ if [[ ! -r "$COROSYNC_CONF" ]]; then
     error_exit "Cannot read $COROSYNC_CONF. Are you running this on a Proxmox cluster node as root?"
 fi
 
-# Function to get Proxmox node hostnames from corosync.conf
+# Extract Proxmox node hostnames from corosync.conf
 get_cluster_nodes() {
     grep -oP '(?<=name: )\S+' "$COROSYNC_CONF"
 }
 
-# Function to update known_hosts on a single node
+# Update known_hosts on a single node
 update_known_hosts() {
     local node_name="$1"
     echo "Updating known_hosts on node: $node_name"
 
-    # Remove the existing host key for the specific node from the system-wide known_hosts file
-    if ! ssh-keygen -f "/etc/ssh/ssh_known_hosts" -R "$node_name" 2>/dev/null; then
-        echo "Warning: Failed to remove $node_name from /etc/ssh/ssh_known_hosts (file may not exist or permission denied)."
+    # System-wide known_hosts
+    KNOWN_HOSTS_SYS="/etc/ssh/ssh_known_hosts"
+    if [[ -e "$KNOWN_HOSTS_SYS" ]]; then
+        if ! ssh-keygen -f "$KNOWN_HOSTS_SYS" -R "$node_name" 2>/dev/null; then
+            echo "Warning: Failed to remove $node_name from $KNOWN_HOSTS_SYS (permission denied?)."
+        fi
+    else
+        info_notice "$KNOWN_HOSTS_SYS does not exist, skipping."
     fi
 
-    # Remove the existing host key for the specific node from the root user's known_hosts file
-    if ! ssh-keygen -f "/root/.ssh/known_hosts" -R "$node_name" 2>/dev/null; then
-        echo "Warning: Failed to remove $node_name from /root/.ssh/known_hosts (file may not exist or permission denied)."
+    # Root user's known_hosts
+    KNOWN_HOSTS_ROOT="/root/.ssh/known_hosts"
+    if [[ -e "$KNOWN_HOSTS_ROOT" ]]; then
+        if ! ssh-keygen -f "$KNOWN_HOSTS_ROOT" -R "$node_name" 2>/dev/null; then
+            echo "Warning: Failed to remove $node_name from $KNOWN_HOSTS_ROOT (permission denied?)."
+        fi
+    else
+        info_notice "$KNOWN_HOSTS_ROOT does not exist, skipping."
     fi
 
     # Add the new key for the node
@@ -48,7 +62,7 @@ update_known_hosts() {
         echo "Warning: Unable to fetch SSH key from $node_name. Node may be unreachable or SSH may be misconfigured."
     fi
 
-    # Run pvecm updatecerts to ensure cluster-wide certificate consistency
+    # Update cluster certificates
     if ! pvecm updatecerts -F; then
         error_exit "pvecm updatecerts failed! Check Proxmox cluster status and permissions."
     fi
@@ -56,7 +70,7 @@ update_known_hosts() {
     echo "known_hosts update completed for $node_name"
 }
 
-# Get the list of nodes from corosync.conf
+# Main logic
 NODES=()
 while read -r node; do
     [[ -n "$node" ]] && NODES+=("$node")
@@ -66,7 +80,6 @@ if [[ ${#NODES[@]} -eq 0 ]]; then
     error_exit "No nodes found in $COROSYNC_CONF. Is your cluster configuration correct?"
 fi
 
-# Iterate through each node and update known_hosts
 for node in "${NODES[@]}"; do
     update_known_hosts "$node"
 done
