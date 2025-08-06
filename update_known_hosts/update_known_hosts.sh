@@ -1,9 +1,9 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
 
 # This script updates SSH known_hosts entries for all Proxmox cluster nodes.
 # It must be run as root on a node that has /etc/pve/corosync.conf.
-
-set -e
 
 # Print an error and exit
 error_exit() {
