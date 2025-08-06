@@ -153,15 +153,34 @@ function push_upgrade_script {
     ssh "$NODE" "chmod +x $REMOTE_PATH"
 }
 
+function collect_backup {
+    local NODE=$1
+    log "Collecting backup from $NODE..."
+    local REMOTE_BACKUP
+    REMOTE_BACKUP=$(ssh "$NODE" "ls -td /root/pve8to9-backup-* 2>/dev/null | head -1")
+    if [ -z "$REMOTE_BACKUP" ]; then
+        log "No backup directory found on $NODE."
+        return
+    fi
+    local DEST="$BACKUP_BASE/$NODE"
+    mkdir -p "$DEST"
+    if scp -r "$NODE:$REMOTE_BACKUP" "$DEST/"; then
+        log "Backup from $NODE stored at $DEST/$(basename "$REMOTE_BACKUP")"
+    else
+        log "WARNING: Failed to copy backup from $NODE"
+    fi
+}
+
 function upgrade_node {
     local NODE=$1
     log "Upgrading $NODE..."
     echo "STATUS $NODE RUNNING" >> "$LOG_DIR/upgrade.log"
-    if ! ssh "$NODE" "bash $REMOTE_PATH"; then
+    if ssh "$NODE" "bash $REMOTE_PATH"; then
+        echo "STATUS $NODE DONE" >> "$LOG_DIR/upgrade.log"
+    else
         echo "STATUS $NODE ERROR" >> "$LOG_DIR/upgrade.log"
-        return 1
     fi
-    echo "STATUS $NODE DONE" >> "$LOG_DIR/upgrade.log"
+    collect_backup "$NODE"
 }
 
 # -----------------------
@@ -217,7 +236,7 @@ function cli_progress {
 # -----------------------
 # Main
 # -----------------------
-mkdir -p "$LOG_DIR"
+mkdir -p "$LOG_DIR" "$BACKUP_BASE"
 > "$LOG_DIR/upgrade.log"
 
 install_prereqs
