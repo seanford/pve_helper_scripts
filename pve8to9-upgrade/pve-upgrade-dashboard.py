@@ -58,15 +58,23 @@ class Handler(SimpleHTTPRequestHandler):
 
 async def log_watcher():
     last = ""
+    position = 0
+    content = ""
     while True:
         try:
             with open(LOG_FILE) as f:
-                content = f.read()
-            payload = parse_log(content)
-            if payload != last:
-                last = payload
-                if clients:
-                    await asyncio.gather(*(client.send(payload) for client in clients))
+                f.seek(position)
+                new_data = f.read()
+                position = f.tell()
+            if new_data:
+                content += new_data
+                payload = parse_log(content)
+                if payload != last:
+                    last = payload
+                    if clients:
+                        await asyncio.gather(
+                            *(client.send(payload) for client in clients)
+                        )
         except OSError as e:
             print(f"Failed to read log file '{LOG_FILE}': {e}")
         except WebSocketException as e:
