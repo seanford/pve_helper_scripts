@@ -70,14 +70,23 @@ function self_update {
     fi
     log "Updating repo..."
     if [ ! -d "$REPO_DIR" ]; then
-        git clone "$REPO_URL" "$REPO_DIR"
+        git clone "$REPO_URL" "$REPO_DIR" || {
+            log "ERROR: Failed to clone repo."
+            exit 1
+        }
     else
         cd "$REPO_DIR"
         log "Resetting local changes (forced clean)..."
-        git fetch --all
-        git reset --hard origin/main
-        git clean -fdx
-        git pull --force
+        git fetch --all || true
+        if ! git reset --hard origin/main || ! git clean -fdx || ! git pull --force; then
+            log "Git update failed — deleting and recloning..."
+            cd /root
+            rm -rf "$REPO_DIR"
+            if ! git clone "$REPO_URL" "$REPO_DIR"; then
+                log "ERROR: Failed to reclone repo."
+                exit 1
+            fi
+        fi
         cd -
     fi
     chmod +x "$SCRIPT_DIR"/*.sh "$SCRIPT_DIR"/*.py
