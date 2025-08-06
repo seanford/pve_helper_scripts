@@ -96,7 +96,9 @@ def parse_log(content):
         parts = line.strip().split(" ")
         if len(parts) >= 3 and parts[0] == "STATUS":
             node, status = parts[1], " ".join(parts[2:])
-            status_dict[node] = {"status": status}
+            # Ignore placeholder or malformed node names
+            if node != "ALL_NODES" and re.match(r"^[A-Za-z0-9_.-]+$", node):
+                status_dict[node] = {"status": status}
         elif "HEALTHCHECK BEGIN" in line:
             in_health = True
             current_timestamp = re.search(r"\[(.*?)\]", line)
@@ -218,4 +220,3 @@ def start_ws():
 
 
 threading.Thread(target=start_http, daemon=True).start()
-start_ws()
