@@ -29,7 +29,11 @@ fi
 
 # Extract Proxmox node hostnames from corosync.conf
 get_cluster_nodes() {
-    grep -oP '(?<=name: )\S+' "$COROSYNC_CONF"
+    awk '
+    $1 == "node" { in_node=1 }
+    in_node && $1 == "name:" { print $2 }
+    in_node && $0 ~ /}/ { in_node=0 }
+    ' "$COROSYNC_CONF"
 }
 
 # Update known_hosts on a single node
