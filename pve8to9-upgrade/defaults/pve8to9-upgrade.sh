@@ -71,7 +71,7 @@ if [[ "$CURRENT_VER" -ge 9 ]]; then
 fi
 
 echo "[*] Checking for pending updates..."
-apt-get update -y
+apt-get update
 apt-get dist-upgrade -y
 
 echo "[*] Ensuring no package locks..."
@@ -131,7 +131,7 @@ fi
 # -----------------------
 # 4. Update package index
 # -----------------------
-apt-get update -y
+apt-get update
 
 # -----------------------
 # 5. Full distribution upgrade
