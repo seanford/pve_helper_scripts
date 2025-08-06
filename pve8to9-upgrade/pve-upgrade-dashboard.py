@@ -13,8 +13,18 @@ from urllib.parse import urlparse
 import websockets
 from websockets.exceptions import WebSocketException
 
-PORT = int(sys.argv[1])
+if len(sys.argv) < 3:
+    print("Usage: pve-upgrade-dashboard.py <port> <log_dir>")
+    sys.exit(1)
+try:
+    PORT = int(sys.argv[1])
+except ValueError:
+    print(f"Invalid port '{sys.argv[1]}'. Port must be an integer.")
+    sys.exit(1)
 LOG_DIR = sys.argv[2]
+if not os.path.isdir(LOG_DIR):
+    print(f"Log directory '{LOG_DIR}' does not exist.")
+    sys.exit(1)
 LOG_FILE = os.path.join(LOG_DIR, "upgrade.log")
 UPGRADE_PATH = "/pve8to9"
 
@@ -24,8 +34,12 @@ TEMPLATE_FILE = os.path.join(os.path.dirname(__file__), "dashboard.html")
 
 
 def load_dashboard_html():
-    with open(TEMPLATE_FILE) as f:
-        template = f.read()
+    try:
+        with open(TEMPLATE_FILE) as f:
+            template = f.read()
+    except OSError as e:
+        print(f"Failed to load dashboard template '{TEMPLATE_FILE}': {e}")
+        sys.exit(1)
     return template.replace("{WS_PORT}", str(PORT + 1))
 
 
