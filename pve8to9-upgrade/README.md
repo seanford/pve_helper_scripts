@@ -17,6 +17,8 @@ A full-featured, interactive upgrade orchestrator for **Proxmox VE clusters or s
 
 ### 🔗 Interactive Installer (SSH or Console)
 
+Run as **root**:
+
 ```bash
 bash <(curl -s https://raw.githubusercontent.com/seanford/pve_helper_scripts/main/pve8to9-upgrade/pve-upgrade-orchestrator.sh)
 ```

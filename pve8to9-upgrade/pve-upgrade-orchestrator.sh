@@ -17,6 +17,11 @@ NO_DASHBOARD=false
 DASHBOARD_PYTHON="python3"
 VENV_DIR="$SCRIPT_DIR/venv"
 
+if [[ $EUID -ne 0 ]]; then
+    echo "This script must be run as root." >&2
+    exit 1
+fi
+
 # -----------------------
 # Parse Flags
 # -----------------------
