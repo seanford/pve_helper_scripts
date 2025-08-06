@@ -27,6 +27,7 @@ This will:
 
 - Clone the helper repo (or update it)
 - Install prerequisites (Python3, websockets, git, etc.; `python3-venv` when using `--force-venv`)
+- Refresh SSH known_hosts entries for cluster nodes
 - Launch the web dashboard (omit with `--no-dashboard`)
 - Prompt you to upgrade a single node or entire cluster interactively
 

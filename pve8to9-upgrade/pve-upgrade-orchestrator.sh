@@ -107,6 +107,17 @@ function self_update {
 }
 
 # -----------------------
+# Refresh known_hosts
+# -----------------------
+function refresh_known_hosts {
+    # Update SSH known_hosts for all cluster nodes
+    log "Refreshing SSH known_hosts entries..."
+    if ! bash "$REPO_DIR/update_known_hosts/update_known_hosts.sh"; then
+        log "WARNING: known_hosts update failed; proceeding anyway"
+    fi
+}
+
+# -----------------------
 # Validate scripts
 # -----------------------
 function validate_scripts {
@@ -266,6 +277,7 @@ mkdir -p "$LOG_DIR" "$BACKUP_BASE"
 
 install_prereqs
 self_update
+refresh_known_hosts
 validate_scripts
 
 MODE=$(detect_cluster)
