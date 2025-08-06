@@ -4,6 +4,7 @@ IFS=$'\n\t'
 
 REPO_URL="https://github.com/seanford/pve_helper_scripts.git"
 REPO_DIR="/root/pve_helper_scripts"
+REPO_BRANCH="main"
 
 echo "[`date '+%Y-%m-%d %H:%M:%S'`] Checking prerequisites..."
 apt-get update -y
@@ -14,17 +15,22 @@ for pkg in git curl; do
     fi
 done
 
-echo "[`date '+%Y-%m-%d %H:%M:%S'`] Updating repo..."
+echo "[`date '+%Y-%m-%d %H:%M:%S'`] Preparing repo..."
 if [ ! -d "$REPO_DIR" ]; then
+    echo "[`date '+%Y-%m-%d %H:%M:%S'`] Repo not found — cloning..."
     git clone "$REPO_URL" "$REPO_DIR"
 else
     cd "$REPO_DIR"
-    echo "[`date '+%Y-%m-%d %H:%M:%S'`] Resetting local changes..."
-    if ! git fetch --all || ! git reset --hard origin/main || ! git clean -fdx || ! git pull --force; then
-        echo "[`date '+%Y-%m-%d %H:%M:%S'`] Git update failed — recloning..."
-        cd /root
-        rm -rf "$REPO_DIR"
-        git clone "$REPO_URL" "$REPO_DIR"
+    echo "[`date '+%Y-%m-%d %H:%M:%S'`] Checking for repo updates..."
+    git fetch origin $REPO_BRANCH >/dev/null 2>&1
+    LOCAL_HASH=$(git rev-parse HEAD)
+    REMOTE_HASH=$(git rev-parse origin/$REPO_BRANCH)
+    if [ "$LOCAL_HASH" != "$REMOTE_HASH" ]; then
+        echo "[`date '+%Y-%m-%d %H:%M:%S'`] Updating to latest commit..."
+        git reset --hard origin/$REPO_BRANCH
+        git clean -fdx
+    else
+        echo "[`date '+%Y-%m-%d %H:%M:%S'`] Repo already up to date — skipping pull."
     fi
 fi
 
