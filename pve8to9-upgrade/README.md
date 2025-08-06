@@ -19,7 +19,7 @@ bash <(curl -s https://raw.githubusercontent.com/seanford/pve_helper_scripts/mai
 ```
 This will:
 - Clone the helper repo (or update it)
-- Install prerequisites (Python3, websockets, git, etc.)
+- Install prerequisites (Python3, websockets, git, etc.; `python3-venv` when using `--force-venv`)
 - Launch the web dashboard
 - Prompt you to upgrade a single node or entire cluster interactively
 
@@ -83,6 +83,9 @@ Example (dry run with snapshots and automatic rollback):
 ```bash
 bash <(curl -s https://raw.githubusercontent.com/seanford/pve_helper_scripts/main/pve8to9-upgrade/pve-upgrade-orchestrator.sh) --dry-run --snapshot
 ```
+
+### Virtual Environment Mode
+Using `--force-venv` will create a Python virtual environment inside the upgrade directory and install the dashboard's Python dependencies there. This keeps system packages untouched and ensures the dashboard has the required modules. The system package `python3-venv` must be available for this mode.
 
 ---
 
