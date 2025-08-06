@@ -189,14 +189,22 @@ async def ws_handler(websocket, path):
 
 
 def start_http():
-    with socketserver.TCPServer(("", PORT), Handler) as httpd:
-        httpd.serve_forever()
+    try:
+        with socketserver.TCPServer(("", PORT), Handler) as httpd:
+            httpd.serve_forever()
+    except OSError as e:
+        print(f"Failed to start HTTP server on port {PORT}: {e}")
+        sys.exit(1)
 
 
 def start_ws():
     asyncio.set_event_loop(asyncio.new_event_loop())
-    start_server = websockets.serve(ws_handler, "0.0.0.0", PORT + 1)
-    asyncio.get_event_loop().run_until_complete(start_server)
+    try:
+        start_server = websockets.serve(ws_handler, "0.0.0.0", PORT + 1)
+        asyncio.get_event_loop().run_until_complete(start_server)
+    except OSError as e:
+        print(f"Failed to start WebSocket server on port {PORT + 1}: {e}")
+        sys.exit(1)
     asyncio.get_event_loop().create_task(log_watcher())
     asyncio.get_event_loop().run_forever()
 
