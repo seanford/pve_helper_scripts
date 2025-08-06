@@ -125,12 +125,14 @@ function validate_scripts {
 
     if [ ! -f "$SCRIPT_DIR/pve8to9-upgrade.sh" ]; then
         log "ERROR: pve8to9-upgrade.sh missing."
-        echo "STATUS ALL_NODES MISSING-UPGRADE-SCRIPT" >> "$LOG_DIR/upgrade.log"
+        # Log without STATUS prefix so the dashboard ignores this placeholder
+        echo "ALL_NODES MISSING-UPGRADE-SCRIPT" >> "$LOG_DIR/upgrade.log"
         MISSING_SCRIPTS=true
     fi
     if [ ! -f "$SCRIPT_DIR/pve8to9-rollback.sh" ]; then
         log "ERROR: pve8to9-rollback.sh missing."
-        echo "STATUS ALL_NODES MISSING-ROLLBACK-SCRIPT" >> "$LOG_DIR/upgrade.log"
+        # Log without STATUS prefix so the dashboard ignores this placeholder
+        echo "ALL_NODES MISSING-ROLLBACK-SCRIPT" >> "$LOG_DIR/upgrade.log"
         MISSING_SCRIPTS=true
     fi
 
