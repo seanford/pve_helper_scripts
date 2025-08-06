@@ -3,7 +3,16 @@ set -euo pipefail
 IFS=$'\n\t'
 
 LOGFILE="/var/log/pve8to9-upgrade.log"
+if ! touch "$LOGFILE" 2>/dev/null; then
+    echo "[ERROR] Cannot create log file $LOGFILE. Check permissions." >&2
+    exit 1
+fi
 exec > >(tee -a "$LOGFILE") 2>&1
+
+command -v pveversion >/dev/null 2>&1 || { echo "[ERROR] pveversion command not found!"; exit 1; }
+command -v apt-get >/dev/null 2>&1 || { echo "[ERROR] apt-get command not found!"; exit 1; }
+command -v pvecm >/dev/null 2>&1 || { echo "[ERROR] pvecm command not found!"; exit 1; }
+
 
 echo "================================================================="
 echo " Starting Proxmox VE 8 → 9 Upgrade on $(hostname)"
@@ -14,8 +23,11 @@ echo "================================================================="
 # -----------------------
 echo "[*] Checking Proxmox version..."
 CURRENT_VER=""
-CURRENT_VER=$(pveversion | awk '{print $2}' | cut -d'.' -f1)
-
+CURRENT_VER=$(pveversion | awk '{print $2}' | cut -d'.' -f1 2>/dev/null || echo "")
+if ! [[ "$CURRENT_VER" =~ ^[0-9]+$ ]]; then
+    echo "[ERROR] Unable to determine Proxmox major version. Aborting."
+    exit 1
+fi
 if [[ "$CURRENT_VER" -lt 8 ]]; then
     echo "[ERROR] This node is not running Proxmox 8.x. Aborting."
     exit 1
@@ -36,10 +48,11 @@ if lsof /var/lib/dpkg/lock >/dev/null 2>&1; then
 fi
 
 echo "[*] Checking cluster status..."
-if pvecm status | grep -q "Quorate"; then
-    echo "[OK] Cluster is quorate."
+if ! pvecm status | grep -q "Quorate"; then
+    echo "[ERROR] Cluster not quorate — ensure connectivity. Aborting."
+    exit 1
 else
-    echo "[WARNING] Cluster not quorate — ensure connectivity."
+    echo "[OK] Cluster is quorate."
 fi
 
 # -----------------------
@@ -48,10 +61,18 @@ fi
 BACKUP_DIR="/root/pve8to9-backup-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$BACKUP_DIR"
 echo "[*] Backing up key configuration files to $BACKUP_DIR..."
-cp -a /etc/apt/sources.list* "$BACKUP_DIR/" || true
-cp -a /etc/apt/sources.list.d "$BACKUP_DIR/" || true
-cp -a /etc/pve "$BACKUP_DIR/etc-pve" || true
-cp -a /etc/network/interfaces "$BACKUP_DIR/" || true
+if [ -f /etc/apt/sources.list ]; then
+    cp -a /etc/apt/sources.list* "$BACKUP_DIR/" || echo "[WARNING] Could not back up sources.list files"
+fi
+if [ -d /etc/apt/sources.list.d ]; then
+    cp -a /etc/apt/sources.list.d "$BACKUP_DIR/" || echo "[WARNING] Could not back up sources.list.d directory"
+fi
+if [ -d /etc/pve ]; then
+    cp -a /etc/pve "$BACKUP_DIR/etc-pve" || echo "[WARNING] Could not back up /etc/pve directory"
+fi
+if [ -f /etc/network/interfaces ]; then
+    cp -a /etc/network/interfaces "$BACKUP_DIR/" || echo "[WARNING] Could not back up network interfaces"
+fi
 dpkg --get-selections > "$BACKUP_DIR/pkg-selections.txt"
 dpkg-query -W -f='${Package} ${Version}\n' > "$BACKUP_DIR/pkg-versions.txt"
 
@@ -59,9 +80,11 @@ dpkg-query -W -f='${Package} ${Version}\n' > "$BACKUP_DIR/pkg-versions.txt"
 # 3. Update sources to Proxmox 9
 # -----------------------
 echo "[*] Updating APT sources to Proxmox 9 repos..."
-sed -i 's/bookworm/trixie/g' /etc/apt/sources.list
+if [ -f /etc/apt/sources.list ]; then
+    sed -i 's/bookworm/trixie/g' /etc/apt/sources.list
+fi
 if [ -d /etc/apt/sources.list.d ]; then
-    sed -i 's/bookworm/trixie/g' /etc/apt/sources.list.d/*.list || true
+    find /etc/apt/sources.list.d -type f -name '*.list' -exec sed -i 's/bookworm/trixie/g' {} +
 fi
 
 # -----------------------
@@ -85,8 +108,9 @@ apt-get autoclean -y
 # -----------------------
 # 7. Final checks
 # -----------------------
-NEW_VER=$(pveversion | awk '{print $2}' | cut -d'.' -f1)
-if [[ "$NEW_VER" -eq 9 ]]; then
+NEW_VER=""
+NEW_VER=$(pveversion | awk '{print $2}' | cut -d'.' -f1 2>/dev/null || echo "")
+if [[ "$NEW_VER" =~ ^9$ ]]; then
     echo "[SUCCESS] Upgrade completed successfully on $(hostname)"
 else
     echo "[WARNING] Upgrade finished but version check did not return 9.x"
