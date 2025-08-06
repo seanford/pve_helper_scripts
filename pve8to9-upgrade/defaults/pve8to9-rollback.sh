@@ -1,5 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
+IFS=$'\n\t'
 
 LOGFILE="/var/log/pve8to9-rollback.log"
 touch "$LOGFILE" || { echo "Cannot create log file $LOGFILE"; exit 1; }
@@ -29,7 +30,7 @@ echo "Detected Proxmox VE version: $pvever"
 
 # Find backup file
 BACKUP_DIR="/root/pve8to9-backups"
-latest_backup=$(ls -1t "$BACKUP_DIR"/pve8to9-backup-* 2>/dev/null | head -n 1 || true)
+latest_backup=$(find "$BACKUP_DIR" -maxdepth 1 -name 'pve8to9-backup-*' -type d -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n 1 | cut -d' ' -f2- || true)
 if [[ -z "$latest_backup" ]]; then
     echo "No backup found in $BACKUP_DIR. Cannot proceed with rollback."
     exit 1

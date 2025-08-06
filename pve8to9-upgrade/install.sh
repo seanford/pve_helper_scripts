@@ -17,7 +17,7 @@ DRY_RUN=false
 # ========================
 log() {
     local msg="$1"
-    echo "[`date '+%Y-%m-%d %H:%M:%S'`] $msg" | tee -a "$LOG_FILE"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $msg" | tee -a "$LOG_FILE"
 }
 
 # ========================
@@ -94,12 +94,12 @@ else
     cd "$REPO_DIR"
     log "Checking for repo updates..."
     if ! $DRY_RUN; then
-        git fetch origin $REPO_BRANCH >/dev/null 2>&1 || { log "ERROR: git fetch failed"; exit 1; }
+        git fetch origin "$REPO_BRANCH" >/dev/null 2>&1 || { log "ERROR: git fetch failed"; exit 1; }
         LOCAL_HASH=$(git rev-parse HEAD)
-        REMOTE_HASH=$(git rev-parse origin/$REPO_BRANCH)
+        REMOTE_HASH=$(git rev-parse origin/"$REPO_BRANCH")
         if [ "$LOCAL_HASH" != "$REMOTE_HASH" ]; then
             log "Updating to latest commit..."
-            git reset --hard origin/$REPO_BRANCH || { log "ERROR: git reset failed"; exit 1; }
+            git reset --hard origin/"$REPO_BRANCH" || { log "ERROR: git reset failed"; exit 1; }
             git clean -fdx || { log "ERROR: git clean failed"; exit 1; }
         else
             log "Repo already up to date — skipping pull."
@@ -142,7 +142,8 @@ log "Ensuring upgrade/rollback scripts are up to date..."
 update_script() {
     local TARGET=$1
     local SOURCE=$2
-    local FILE_NAME=$(basename "$TARGET")
+    local FILE_NAME
+    FILE_NAME=$(basename "$TARGET")
     local DEFAULT_SIG="AUTO-CREATED DEFAULT"
     # Function: Updates live script from default unless customized or --reset-scripts is used
     if $RESET_SCRIPTS; then

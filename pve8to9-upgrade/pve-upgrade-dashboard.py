@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
-import sys, os, time, threading, asyncio, websockets, json
-from websockets.exceptions import WebSocketException
-from http.server import SimpleHTTPRequestHandler
-import socketserver
-from urllib.parse import urlparse
-import subprocess
+import asyncio
+import json
+import os
 import re
+import socketserver
+import subprocess
+import sys
+import threading
+from http.server import SimpleHTTPRequestHandler
+from urllib.parse import urlparse
+
+import websockets
+from websockets.exceptions import WebSocketException
 
 PORT = int(sys.argv[1])
 LOG_DIR = sys.argv[2]
@@ -16,10 +22,12 @@ clients = set()
 
 TEMPLATE_FILE = os.path.join(os.path.dirname(__file__), "dashboard.html")
 
+
 def load_dashboard_html():
     with open(TEMPLATE_FILE) as f:
         template = f.read()
     return template.replace("{WS_PORT}", str(PORT + 1))
+
 
 class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
@@ -32,6 +40,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.wfile.write(html.encode())
         else:
             self.send_error(404, "Not found")
+
 
 async def log_watcher():
     last = ""
@@ -50,6 +59,7 @@ async def log_watcher():
             print(f"WebSocket error while sending updates: {e}")
         await asyncio.sleep(3)
 
+
 def parse_log(content):
     lines = content.strip().split("\n")
     status_dict = {}
@@ -67,14 +77,16 @@ def parse_log(content):
             status_dict[node] = {"status": status}
         elif "HEALTHCHECK BEGIN" in line:
             in_health = True
-            current_timestamp = re.search(r'\[(.*?)\]', line)
+            current_timestamp = re.search(r"\[(.*?)\]", line)
             if current_timestamp:
                 current_timestamp = current_timestamp.group(1)
             current_check = []
         elif "HEALTHCHECK END" in line:
             in_health = False
             if current_check:
-                health_checks.append({"timestamp": current_timestamp, "items": current_check})
+                health_checks.append(
+                    {"timestamp": current_timestamp, "items": current_check}
+                )
         elif in_health and line.startswith("["):
             msg = " ".join(parts[2:])
             current_check.append(msg)
@@ -92,43 +104,57 @@ def parse_log(content):
         cpu = get_cpu_usage(node)
         ram = get_ram_usage(node)
         uptime = get_uptime(node)
-        node_data.append({
-            "name": node,
-            "status": status_dict[node]["status"],
-            "online": "ONLINE" if is_online(node) else "OFFLINE",
-            "cpu": cpu,
-            "ram": ram,
-            "uptime": uptime
-        })
+        node_data.append(
+            {
+                "name": node,
+                "status": status_dict[node]["status"],
+                "online": "ONLINE" if is_online(node) else "OFFLINE",
+                "cpu": cpu,
+                "ram": ram,
+                "uptime": uptime,
+            }
+        )
 
-    return json.dumps({"nodes": node_data, "health_checks": health_checks, "summary": summary_lines})
+    return json.dumps(
+        {"nodes": node_data, "health_checks": health_checks, "summary": summary_lines}
+    )
+
 
 def get_cpu_usage(node):
     try:
         cmd = ["ssh", node, "top -bn1 | grep 'Cpu(s)' | awk '{print $2+$4}'"]
-        output = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode().strip()
+        output = (
+            subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode().strip()
+        )
         return round(float(output), 1)
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         print(f"Failed to get CPU usage for {node}: {e}")
         return 0.0
 
+
 def get_ram_usage(node):
     try:
         cmd = ["ssh", node, "free | grep Mem | awk '{print $3/$2 * 100.0}'"]
-        output = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode().strip()
+        output = (
+            subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode().strip()
+        )
         return round(float(output), 1)
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         print(f"Failed to get RAM usage for {node}: {e}")
         return 0.0
 
+
 def get_uptime(node):
     try:
         cmd = ["ssh", node, "uptime -p"]
-        output = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode().strip()
+        output = (
+            subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode().strip()
+        )
         return output
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         print(f"Failed to get uptime for {node}: {e}")
         return "N/A"
+
 
 def is_online(node):
     try:
@@ -139,6 +165,7 @@ def is_online(node):
         print(f"Node {node} is offline or unreachable: {e}")
         return False
 
+
 async def ws_handler(websocket, path):
     clients.add(websocket)
     try:
@@ -146,16 +173,19 @@ async def ws_handler(websocket, path):
     finally:
         clients.remove(websocket)
 
+
 def start_http():
     with socketserver.TCPServer(("", PORT), Handler) as httpd:
         httpd.serve_forever()
 
+
 def start_ws():
     asyncio.set_event_loop(asyncio.new_event_loop())
-    start_server = websockets.serve(ws_handler, "0.0.0.0", PORT+1)
+    start_server = websockets.serve(ws_handler, "0.0.0.0", PORT + 1)
     asyncio.get_event_loop().run_until_complete(start_server)
     asyncio.get_event_loop().create_task(log_watcher())
     asyncio.get_event_loop().run_forever()
+
 
 threading.Thread(target=start_http, daemon=True).start()
 start_ws()
