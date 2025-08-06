@@ -2,10 +2,14 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+REPO_URL="https://github.com/seanford/pve_helper_scripts.git"
+REPO_DIR="/root/pve_helper_scripts"
+SCRIPT_DIR="$REPO_DIR/pve8to9-upgrade"
 REMOTE_PATH="/root/pve8to9-upgrade.sh"
 LOG_DIR="/root/pve-upgrade-logs"
 DASHBOARD_PORT=8080
 DRY_RUN=false
+NO_UPDATE=false
 
 function log {
     local MSG="[`date '+%F %T'`] $1"
@@ -14,8 +18,46 @@ function log {
 }
 
 function usage {
-    echo "Usage: $0 [--dry-run]"
+    echo "Usage: $0 [--dry-run] [--no-update]"
     exit 1
+}
+
+function install_prereqs {
+    log "Checking prerequisites..."
+    apt-get update -y
+    for pkg in python3 python3-pip git tar zip curl wget; do
+        if ! dpkg -s $pkg &>/dev/null; then
+            log "Installing missing package: $pkg"
+            apt-get install -y $pkg
+        fi
+    done
+    if ! python3 -c "import websockets" &>/dev/null; then
+        log "Installing Python websockets module..."
+        python3 -m pip install --upgrade pip
+        python3 -m pip install websockets
+    fi
+}
+
+function self_update {
+    if $NO_UPDATE; then
+        log "Skipping self-update (--no-update specified)"
+        return
+    fi
+    log "Performing self-update..."
+    if [ ! -d "$REPO_DIR" ]; then
+        log "Repo not found. Cloning fresh..."
+        git clone "$REPO_URL" "$REPO_DIR"
+    else
+        log "Repo exists. Pulling latest changes..."
+        cd "$REPO_DIR"
+        git reset --hard
+        git pull --rebase
+        cd -
+    fi
+    chmod +x "$SCRIPT_DIR"/*.sh "$SCRIPT_DIR"/*.py
+    cp "$SCRIPT_DIR"/pve8to9-upgrade.sh .
+    cp "$SCRIPT_DIR"/pve-upgrade-dashboard.py .
+    log "Self-update complete."
 }
 
 function detect_cluster {
@@ -36,7 +78,7 @@ function push_upgrade_script {
     if $DRY_RUN; then
         log "[DRY-RUN] Would copy script to $NODE"
     else
-        scp ./pve8to9-upgrade.sh "$NODE:$REMOTE_PATH"
+        scp "$SCRIPT_DIR/pve8to9-upgrade.sh" "$NODE:$REMOTE_PATH"
         ssh "$NODE" "chmod +x $REMOTE_PATH"
     fi
 }
@@ -81,7 +123,7 @@ function upgrade_node {
 
 function start_dashboard {
     log "Starting WebSocket dashboard on port $DASHBOARD_PORT..."
-    python3 ./pve-upgrade-dashboard.py "$DASHBOARD_PORT" "$LOG_DIR" &
+    python3 "$SCRIPT_DIR/pve-upgrade-dashboard.py" "$DASHBOARD_PORT" "$LOG_DIR" &
     DASHBOARD_PID=$!
     sleep 2
     local IP_ADDR
@@ -108,12 +150,16 @@ function ping_nodes {
 for arg in "$@"; do
     case $arg in
         --dry-run) DRY_RUN=true ;;
+        --no-update) NO_UPDATE=true ;;
         *) usage ;;
     esac
 done
 
 mkdir -p "$LOG_DIR"
 > "$LOG_DIR/upgrade.log"
+
+install_prereqs
+self_update
 
 MODE=$(detect_cluster)
 log "Detected environment: $MODE"
