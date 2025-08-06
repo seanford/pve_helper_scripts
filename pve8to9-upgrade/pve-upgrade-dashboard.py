@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys, os, time, threading, asyncio, websockets, json
+from websockets.exceptions import WebSocketException
 from http.server import SimpleHTTPRequestHandler
 import socketserver
 from urllib.parse import urlparse
@@ -171,8 +172,10 @@ async def log_watcher():
                 last = payload
                 if clients:
                     await asyncio.gather(*(client.send(payload) for client in clients))
-        except:
-            pass
+        except OSError as e:
+            print(f"Failed to read log file '{LOG_FILE}': {e}")
+        except WebSocketException as e:
+            print(f"WebSocket error while sending updates: {e}")
         await asyncio.sleep(3)
 
 def parse_log(content):
@@ -233,7 +236,8 @@ def get_cpu_usage(node):
         cmd = ["ssh", node, "top -bn1 | grep 'Cpu(s)' | awk '{print $2+$4}'"]
         output = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode().strip()
         return round(float(output), 1)
-    except:
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"Failed to get CPU usage for {node}: {e}")
         return 0.0
 
 def get_ram_usage(node):
@@ -241,7 +245,8 @@ def get_ram_usage(node):
         cmd = ["ssh", node, "free | grep Mem | awk '{print $3/$2 * 100.0}'"]
         output = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode().strip()
         return round(float(output), 1)
-    except:
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"Failed to get RAM usage for {node}: {e}")
         return 0.0
 
 def get_uptime(node):
@@ -249,7 +254,8 @@ def get_uptime(node):
         cmd = ["ssh", node, "uptime -p"]
         output = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode().strip()
         return output
-    except:
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"Failed to get uptime for {node}: {e}")
         return "N/A"
 
 def is_online(node):
@@ -257,7 +263,8 @@ def is_online(node):
         cmd = ["ping", "-c", "1", "-W", "1", node]
         subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
-    except:
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"Node {node} is offline or unreachable: {e}")
         return False
 
 async def ws_handler(websocket, path):
