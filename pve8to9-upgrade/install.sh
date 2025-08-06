@@ -23,17 +23,36 @@ log() {
 # ========================
 # Parse flags
 # ========================
-for arg in "$@"; do
-    case $arg in
-        --reset-scripts) RESET_SCRIPTS=true ;; 
-        --dry-run) DRY_RUN=true ;; 
-        --repo-url=*) REPO_URL="${arg#*=}" ;; 
-        --repo-dir=*) REPO_DIR="${arg#*=}" ;; 
-        --repo-branch=*) REPO_BRANCH="${arg#*=}" ;; 
-        --log-file=*) LOG_FILE="${arg#*=}" ;; 
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --reset-scripts)
+            RESET_SCRIPTS=true
+            shift
+            ;;
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+        --repo-url=*)
+            REPO_URL="${1#*=}"
+            shift
+            ;;
+        --repo-dir=*)
+            REPO_DIR="${1#*=}"
+            shift
+            ;;
+        --repo-branch=*)
+            REPO_BRANCH="${1#*=}"
+            shift
+            ;;
+        --log-file=*)
+            LOG_FILE="${1#*=}"
+            shift
+            ;;
+        *)
+            break
+            ;;
     esac
-    # Remove parsed flag from arguments
-    shift
 done
 
 # ========================
