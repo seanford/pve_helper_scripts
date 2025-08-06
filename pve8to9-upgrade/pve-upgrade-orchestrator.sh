@@ -15,6 +15,7 @@ FORCE_VENV=false
 SNAPSHOT=false
 NO_DASHBOARD=false
 DASHBOARD_PYTHON="python3"
+VENV_DIR="$SCRIPT_DIR/venv"
 
 # -----------------------
 # Parse Flags
@@ -62,9 +63,16 @@ function install_prereqs {
             apt-get install -y $pkg
         fi
     done
-    if ! python3 -c "import websockets" &>/dev/null; then
-        log "Installing Python websockets via apt..."
-        apt-get install -y python3-websockets
+    if $FORCE_VENV; then
+        if ! dpkg -s python3-venv &>/dev/null; then
+            log "Installing missing package: python3-venv"
+            apt-get install -y python3-venv
+        fi
+    else
+        if ! python3 -c "import websockets" &>/dev/null; then
+            log "Installing Python websockets via apt..."
+            apt-get install -y python3-websockets
+        fi
     fi
 }
 
@@ -205,6 +213,17 @@ function start_dashboard {
         log "ERROR: Python3 not found — cannot start dashboard."
         log "Continuing without dashboard..."
         return
+    fi
+
+    if $FORCE_VENV; then
+        log "Setting up Python virtual environment for dashboard..."
+        if [ ! -d "$VENV_DIR" ]; then
+            python3 -m venv "$VENV_DIR"
+        fi
+        log "Installing dashboard dependencies..."
+        "$VENV_DIR/bin/pip" install --upgrade pip >/dev/null 2>&1
+        "$VENV_DIR/bin/pip" install websockets >/dev/null 2>&1
+        DASHBOARD_PYTHON="$VENV_DIR/bin/python"
     fi
 
     $DASHBOARD_PYTHON "$DASHBOARD_SCRIPT" "$DASHBOARD_PORT" "$LOG_DIR" &
