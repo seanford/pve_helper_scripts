@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# AUTO-CREATED DEFAULT (FULL ROBUST LOGIC)
 set -euo pipefail
 IFS=$'\n\t'
 
@@ -17,6 +18,10 @@ CURRENT_VER=$(pveversion | awk '{print $2}' | cut -d'.' -f1)
 if [[ "$CURRENT_VER" -lt 8 ]]; then
     echo "[ERROR] This node is not running Proxmox 8.x. Aborting."
     exit 1
+fi
+if [[ "$CURRENT_VER" -ge 9 ]]; then
+    echo "[INFO] Node is already running Proxmox 9.x. Skipping upgrade."
+    exit 0
 fi
 
 echo "[*] Checking for pending updates..."
@@ -39,9 +44,9 @@ fi
 # -----------------------
 # 2. Backup configs
 # -----------------------
-echo "[*] Backing up key configuration files..."
 BACKUP_DIR="/root/pve8to9-backup-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$BACKUP_DIR"
+echo "[*] Backing up key configuration files to $BACKUP_DIR..."
 cp -a /etc/apt/sources.list* "$BACKUP_DIR/" || true
 cp -a /etc/apt/sources.list.d "$BACKUP_DIR/" || true
 cp -a /etc/pve "$BACKUP_DIR/etc-pve" || true
@@ -61,7 +66,6 @@ fi
 # -----------------------
 # 4. Update package index
 # -----------------------
-echo "[*] Running apt-get update..."
 apt-get update -y
 
 # -----------------------
@@ -80,7 +84,6 @@ apt-get autoclean -y
 # -----------------------
 # 7. Final checks
 # -----------------------
-echo "[*] Checking Proxmox version post-upgrade..."
 NEW_VER=$(pveversion | awk '{print $2}' | cut -d'.' -f1)
 if [[ "$NEW_VER" -eq 9 ]]; then
     echo "[SUCCESS] Upgrade completed successfully on $(hostname)"
