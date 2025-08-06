@@ -157,7 +157,9 @@ function upgrade_node {
     local NODE=$1
     log "Upgrading $NODE..."
     echo "STATUS $NODE RUNNING" >> "$LOG_DIR/upgrade.log"
-    if ! ssh "$NODE" "bash $REMOTE_PATH"; then
+    local SNAP_FLAG=""
+    if $SNAPSHOT; then SNAP_FLAG="--snapshot"; fi
+    if ! ssh "$NODE" "bash $REMOTE_PATH $SNAP_FLAG"; then
         echo "STATUS $NODE ERROR" >> "$LOG_DIR/upgrade.log"
         return 1
     fi
