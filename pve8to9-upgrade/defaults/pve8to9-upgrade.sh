@@ -131,6 +131,38 @@ if [ -d /etc/apt/sources.list.d ]; then
     find /etc/apt/sources.list.d -type f -name '*.list' -exec sed -i 's/bookworm/trixie/g' {} +
 fi
 
+# Ensure Proxmox VE repository files exist with appropriate defaults
+PVE_ENT_FILE="/etc/apt/sources.list.d/pve-enterprise.list"
+PVE_NO_SUB_FILE="/etc/apt/sources.list.d/pve-no-subscription.list"
+CEPH_FILE="/etc/apt/sources.list.d/ceph.list"
+
+# Enterprise repository (commented by default if missing)
+if [ -f "$PVE_ENT_FILE" ]; then
+    sed -i 's/bookworm/trixie/g' "$PVE_ENT_FILE"
+else
+    cat <<'EOF' >"$PVE_ENT_FILE"
+#deb https://enterprise.proxmox.com/debian/pve trixie pve-enterprise
+EOF
+fi
+
+# No-subscription repository
+if [ -f "$PVE_NO_SUB_FILE" ]; then
+    sed -i 's/bookworm/trixie/g' "$PVE_NO_SUB_FILE"
+else
+    cat <<'EOF' >"$PVE_NO_SUB_FILE"
+deb http://download.proxmox.com/debian/pve trixie pve-no-subscription
+EOF
+fi
+
+# Ceph repository (commented by default)
+if [ -f "$CEPH_FILE" ]; then
+    sed -i 's/reef/squid/g' "$CEPH_FILE"
+else
+    cat <<'EOF' >"$CEPH_FILE"
+#deb http://download.proxmox.com/debian/ceph squid main
+EOF
+fi
+
 # -----------------------
 # 4. Update package index
 # -----------------------

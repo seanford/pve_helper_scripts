@@ -10,6 +10,7 @@ A full-featured, interactive upgrade orchestrator for **Proxmox VE clusters or s
 - ✅ A live Web Dashboard to track upgrade status in real time
 - ✅ Auto-cleanup of dashboard/websocket processes
 - ✅ Optional headless mode (`--no-dashboard`)
+- ✅ Updates APT repositories for Proxmox 9 (enterprise, no-subscription, and Ceph entries)
 
 ---
 
