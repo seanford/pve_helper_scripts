@@ -35,4 +35,4 @@ fuser -k 8081/tcp >/dev/null 2>&1 || true
 echo "[`date '+%Y-%m-%d %H:%M:%S'`] Dashboard cleaned up."
 
 echo "[`date '+%Y-%m-%d %H:%M:%S'`] Launching orchestrator..."
-bash "$REPO_DIR/pve8to9-upgrade/pve-upgrade-orchestrator.sh"
+bash "$REPO_DIR/pve8to9-upgrade/pve-upgrade-orchestrator.sh" "$@"
