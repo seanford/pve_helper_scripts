@@ -94,26 +94,40 @@ function self_update {
 # Validate scripts
 # -----------------------
 function create_default_scripts {
-    log "Creating default upgrade script..."
+    mkdir -p "$SCRIPT_DIR"
+    
+    # Upgrade script
     cat <<'EOF' > "$SCRIPT_DIR/pve8to9-upgrade.sh"
 #!/usr/bin/env bash
+# AUTO-CREATED DEFAULT
 set -euo pipefail
 LOGFILE="/var/log/pve8to9-upgrade.log"
 exec > >(tee -a "$LOGFILE") 2>&1
-echo "Starting PVE 8 → 9 Upgrade..."
+echo "================================================================="
+echo " Starting PVE 8 → 9 Upgrade on $(hostname)"
+echo "================================================================="
+apt-get update -y
+apt-get dist-upgrade -y
+echo "Upgrade complete on $(hostname)."
 EOF
     chmod +x "$SCRIPT_DIR/pve8to9-upgrade.sh"
 
-    log "Creating default rollback script..."
+    # Rollback script
     cat <<'EOF' > "$SCRIPT_DIR/pve8to9-rollback.sh"
 #!/usr/bin/env bash
+# AUTO-CREATED DEFAULT
 set -euo pipefail
 LOGFILE="/var/log/pve8to9-rollback.log"
 exec > >(tee -a "$LOGFILE") 2>&1
-echo "Starting PVE 8 → 9 Rollback..."
+echo "================================================================="
+echo " Rolling back PVE upgrade on $(hostname)"
+echo "================================================================="
+echo "No rollback steps defined in default script."
 EOF
     chmod +x "$SCRIPT_DIR/pve8to9-rollback.sh"
 }
+
+
 
 MISSING_SCRIPTS=false
 
@@ -130,13 +144,25 @@ function validate_scripts {
         MISSING_SCRIPTS=true
     fi
     if $MISSING_SCRIPTS; then
-        log "Launching dashboard for visual warning..."
-        start_dashboard
-        echo ""
-        read -rp "Scripts missing. Fix them, then press Enter to re-check..." < /dev/tty
-        validate_scripts  # re-check after user fixes
+        log "Some required scripts are missing."
+
+        # If interactive terminal exists
+        if [ -t 0 ]; then
+            read -rp "Auto-create default scripts now? (y/N): " CREATE < /dev/tty || CREATE="n"
+            if [[ "$CREATE" =~ ^[Yy]$ ]]; then
+                create_default_scripts
+            else
+                log "Aborting due to missing scripts."
+                exit 1
+            fi
+        else
+            # No TTY → Auto-create
+            log "No interactive TTY detected — auto-creating default scripts."
+            create_default_scripts
+        fi
     fi
 }
+
 
 
 # -----------------------

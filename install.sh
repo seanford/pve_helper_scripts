@@ -5,6 +5,14 @@ IFS=$'\n\t'
 REPO_URL="https://github.com/seanford/pve_helper_scripts.git"
 REPO_DIR="/root/pve_helper_scripts"
 REPO_BRANCH="main"
+RESET_SCRIPTS=false
+
+# Parse flags early so we capture --reset-scripts
+for arg in "$@"; do
+    case $arg in
+        --reset-scripts) RESET_SCRIPTS=true ;;
+    esac
+done
 
 echo "[`date '+%Y-%m-%d %H:%M:%S'`] Checking prerequisites..."
 apt-get update -y
@@ -33,6 +41,35 @@ else
         echo "[`date '+%Y-%m-%d %H:%M:%S'`] Repo already up to date — skipping pull."
     fi
 fi
+
+UPGRADE_SCRIPT="$REPO_DIR/pve8to9-upgrade/pve8to9-upgrade.sh"
+ROLLBACK_SCRIPT="$REPO_DIR/pve8to9-upgrade/pve8to9-rollback.sh"
+
+echo "[`date '+%Y-%m-%d %H:%M:%S'`] Ensuring upgrade/rollback scripts are up to date..."
+update_script() {
+    local FILE=$1
+    local FILE_NAME=$(basename "$FILE")
+    local DEFAULT_SIG="AUTO-CREATED DEFAULT"
+
+    if $RESET_SCRIPTS; then
+        echo "[`date '+%Y-%m-%d %H:%M:%S'`] --reset-scripts: Forcing update of $FILE_NAME."
+        cp "$REPO_DIR/pve8to9-upgrade/$FILE_NAME" "$FILE"
+        return
+    fi
+
+    if [ ! -f "$FILE" ]; then
+        echo "[`date '+%Y-%m-%d %H:%M:%S'`] $FILE_NAME missing — copying from repo."
+        cp "$REPO_DIR/pve8to9-upgrade/$FILE_NAME" "$FILE"
+    elif grep -q "$DEFAULT_SIG" "$FILE"; then
+        echo "[`date '+%Y-%m-%d %H:%M:%S'`] $FILE_NAME is default — updating from repo."
+        cp "$REPO_DIR/pve8to9-upgrade/$FILE_NAME" "$FILE"
+    else
+        echo "[`date '+%Y-%m-%d %H:%M:%S'`] $FILE_NAME customized — leaving untouched."
+    fi
+}
+
+update_script "$UPGRADE_SCRIPT"
+update_script "$ROLLBACK_SCRIPT"
 
 echo "[`date '+%Y-%m-%d %H:%M:%S'`] Cleaning up dashboard processes..."
 pkill -f pve-upgrade-dashboard.py >/dev/null 2>&1 || true
