@@ -169,7 +169,8 @@ async def log_watcher():
             payload = parse_log(content)
             if payload != last:
                 last = payload
-                await asyncio.wait([client.send(payload) for client in clients])
+                if clients:
+                    await asyncio.gather(*(client.send(payload) for client in clients))
         except:
             pass
         await asyncio.sleep(3)
