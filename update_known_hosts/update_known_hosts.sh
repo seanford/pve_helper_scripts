@@ -16,6 +16,11 @@ info_notice() {
     echo "NOTICE: $1"
 }
 
+# Ensure a required command exists in PATH
+require_cmd() {
+    command -v "$1" >/dev/null 2>&1 || error_exit "Required command '$1' not found"
+}
+
 # Check for root privileges
 if [[ $EUID -ne 0 ]]; then
     error_exit "This script must be run as root."
@@ -26,6 +31,11 @@ COROSYNC_CONF="/etc/pve/corosync.conf"
 if [[ ! -r "$COROSYNC_CONF" ]]; then
     error_exit "Cannot read $COROSYNC_CONF. Are you running this on a Proxmox cluster node as root?"
 fi
+
+# Verify required external commands are available
+require_cmd ssh-keygen
+require_cmd ssh
+require_cmd pvecm
 
 # Extract Proxmox node hostnames from corosync.conf
 get_cluster_nodes() {
