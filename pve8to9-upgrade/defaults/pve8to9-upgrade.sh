@@ -24,6 +24,7 @@ for arg in "$@"; do
     esac
 done
 
+# Create snapshots for each VM before the upgrade
 create_vm_snapshots() {
     VM_IDS=$(qm list 2>/dev/null | awk 'NR>1 {print $1}')
     for VMID in $VM_IDS; do
@@ -32,6 +33,7 @@ create_vm_snapshots() {
     done
 }
 
+# Roll back VMs to the pre-upgrade snapshots
 rollback_vm_snapshots() {
     for VMID in $VM_IDS; do
         echo "[*] Rolling back VM $VMID to snapshot $SNAP_NAME..."
@@ -39,6 +41,7 @@ rollback_vm_snapshots() {
     done
 }
 
+# Handle upgrade failures and trigger rollback when enabled
 handle_failure() {
     echo "[ERROR] Upgrade failed. Rolling back snapshots..."
     if $SNAPSHOT; then
