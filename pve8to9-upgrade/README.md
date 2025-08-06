@@ -3,7 +3,7 @@
 A full-featured, interactive upgrade orchestrator for **Proxmox VE clusters or single-node setups**. This tool guides you through the upgrade process from **Proxmox VE 8 to 9**, offering:
 
 - ✅ Pre-checks and config backups
-- ✅ Optional snapshot creation
+- ✅ Optional VM snapshot creation with automatic rollback on failure
 - ✅ Live rollback support (via backup or snapshot)
 - ✅ Cluster-aware sequential upgrades
 - ✅ Fully interactive, human-friendly prompts
@@ -36,7 +36,8 @@ This will:
   - Auto-scrolls to failed/rollback nodes
   - Displays live CPU/RAM/Uptime per node
 - Clean rollback:
-  - Restore snapshot or backup
+  - Snapshots are rolled back automatically on failure
+  - Restore backup if needed
   - Duration of rollback displayed in dashboard
 
 ---
@@ -75,10 +76,10 @@ Open that in your browser to track progress.
 ```bash
 --dry-run       # Only simulate upgrade steps
 --no-update     # Skip auto-updating repo
---snapshot      # Create snapshots before upgrade (VMs only)
---force-venv    # Run dashboard in a Python virtual environment (requires python3-venv)
+--snapshot      # Create VM snapshots before upgrade and auto-rollback on failure
+--force-venv    # Force use of Python venv for dashboard
 ```
-Example:
+Example (dry run with snapshots and automatic rollback):
 ```bash
 bash <(curl -s https://raw.githubusercontent.com/seanford/pve_helper_scripts/main/pve8to9-upgrade/pve-upgrade-orchestrator.sh) --dry-run --snapshot
 ```
@@ -100,14 +101,7 @@ This kills:
 ---
 
 ## 🧍🏼‍⚖️ Rollback After Failure
-If a node upgrade fails, you’ll be prompted with:
-```
-Rollback options:
-  1) Snapshot rollback
-  2) Backup rollback
-  3) Skip rollback
-```
-Rollback duration will be logged and visible in the dashboard.
+If a node upgrade fails and snapshots were created (`--snapshot`), the script automatically rolls each VM back to its pre-upgrade snapshot. Otherwise, restore from backups as needed. Rollback duration will be logged and visible in the dashboard.
 
 ---
 

@@ -12,7 +12,40 @@ exec > >(tee -a "$LOGFILE") 2>&1
 command -v pveversion >/dev/null 2>&1 || { echo "[ERROR] pveversion command not found!"; exit 1; }
 command -v apt-get >/dev/null 2>&1 || { echo "[ERROR] apt-get command not found!"; exit 1; }
 command -v pvecm >/dev/null 2>&1 || { echo "[ERROR] pvecm command not found!"; exit 1; }
+command -v qm >/dev/null 2>&1 || { echo "[ERROR] qm command not found!"; exit 1; }
 
+SNAPSHOT=false
+SNAP_NAME="pre-pve8to9-$(date +%Y%m%d-%H%M%S)"
+VM_IDS=""
+
+for arg in "$@"; do
+    case $arg in
+        --snapshot) SNAPSHOT=true ;;
+    esac
+done
+
+create_vm_snapshots() {
+    VM_IDS=$(qm list 2>/dev/null | awk 'NR>1 {print $1}')
+    for VMID in $VM_IDS; do
+        echo "[*] Creating snapshot for VM $VMID..."
+        qm snapshot "$VMID" "$SNAP_NAME" >/dev/null 2>&1 || echo "[WARNING] Snapshot failed for VM $VMID"
+    done
+}
+
+rollback_vm_snapshots() {
+    for VMID in $VM_IDS; do
+        echo "[*] Rolling back VM $VMID to snapshot $SNAP_NAME..."
+        qm rollback "$VMID" "$SNAP_NAME" >/dev/null 2>&1 || echo "[WARNING] Rollback failed for VM $VMID"
+    done
+}
+
+handle_failure() {
+    echo "[ERROR] Upgrade failed. Rolling back snapshots..."
+    if $SNAPSHOT; then
+        rollback_vm_snapshots
+    fi
+}
+trap handle_failure ERR
 
 echo "================================================================="
 echo " Starting Proxmox VE 8 → 9 Upgrade on $(hostname)"
@@ -53,6 +86,14 @@ if ! pvecm status | grep -q "Quorate"; then
     exit 1
 else
     echo "[OK] Cluster is quorate."
+fi
+
+# -----------------------
+# Snapshot (optional)
+# -----------------------
+if $SNAPSHOT; then
+    echo "[*] Creating VM snapshots (name: $SNAP_NAME)..."
+    create_vm_snapshots
 fi
 
 # -----------------------
