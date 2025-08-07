@@ -167,7 +167,7 @@ function detect_cluster {
 }
 
 function get_nodes {
-    grep -Po '(?<=name: )\S+' /etc/pve/corosync.conf 2>/dev/null | sort -u
+    grep -Po '(?<=\sname: )\S+' /etc/pve/corosync.conf 2>/dev/null | sort -u
 }
 
 # -----------------------
