@@ -1,0 +1,23 @@
+NOTES.md
+
+Convert from SeaBIOS to OVMF UEFI
+
+Make a backup or snapshot of your vdisk file.
+
+Open Powershell as admin:
+
+Run: mbr2gpt /validate /allowFullOS <-- if ok then
+
+If the above command validates successfully...
+
+Run: mbr2gpt /convert /disk:0 /allowFullOS
+
+If the conversion is successful your win10 VM disk is prepared for EFI boot
+
+shut the VM down.
+
+Change BIOS from SeaBIOS to OVMF UEFI
+
+Create the EFI disk 1.
+
+Make sure Pre-Enrolled-Keys is checked 5. Create a TPM 2.0 disk 6. Boot up your VM
